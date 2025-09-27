@@ -25,3 +25,18 @@ private:
     VkPipelineLayout mLayout;
     VkPipeline mPipeline;
 };
+
+class ComputePipeline
+{
+public:
+    ComputePipeline(const std::shared_ptr<VulkanManager>& vulkanManager, const std::shared_ptr<Shader>& computeShader);
+    ~ComputePipeline();
+
+    void Dispatch(const std::shared_ptr<CommandBuffer>& commandBuffer, uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ);
+private:
+    std::shared_ptr<VulkanManager> mVulkanManager;
+    std::shared_ptr<Shader> mComputeShader;
+
+    VkPipelineLayout mLayout;
+    VkPipeline mPipeline;
+};

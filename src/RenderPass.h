@@ -13,6 +13,7 @@ public:
     ~RenderPass();
 
     [[nodiscard]] inline VkRenderPass RenderPassHandle() const { return mRenderPass; }
+    [[nodiscard]] inline VkExtent2D Extent() const { return mSurface->Extent(); }
 
     void Begin(const std::shared_ptr<CommandBuffer>& commandBuffer, uint32_t index);
     void End(const std::shared_ptr<CommandBuffer>& commandBuffer);

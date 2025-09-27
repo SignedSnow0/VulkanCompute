@@ -2,7 +2,7 @@
 
 #include <iostream>
 
-VkCommandPool createCommandPool(VkDevice device, uint32_t queueFamilyIndex)
+static VkCommandPool createCommandPool(VkDevice device, uint32_t queueFamilyIndex)
 {
     VkCommandPoolCreateInfo poolInfo = {};
     poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;

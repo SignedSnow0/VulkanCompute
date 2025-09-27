@@ -1,11 +1,11 @@
 #include "Pipeline.h"
 
-VkPipelineLayout createPipelineLayout(VkDevice device)
+VkPipelineLayout createPipelineLayout(VkDevice device, VkDescriptorSetLayout mDescriptorSetLayout)
 {
     VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutInfo.setLayoutCount = 0; // Optional
-    pipelineLayoutInfo.pSetLayouts = nullptr; // Optional
+    pipelineLayoutInfo.setLayoutCount = 1;
+    pipelineLayoutInfo.pSetLayouts = &mDescriptorSetLayout;
     pipelineLayoutInfo.pushConstantRangeCount = 0; // Optional
     pipelineLayoutInfo.pPushConstantRanges = nullptr; // Optional
 
@@ -18,7 +18,7 @@ VkPipelineLayout createPipelineLayout(VkDevice device)
     return pipelineLayout;
 }
 
-VkPipeline createGraphicsPipeline(VkDevice device, VkRenderPass renderPass, VkPipelineLayout layout, const std::vector<std::shared_ptr<Shader>>& shaders)
+VkPipeline createGraphicsPipeline(VkDevice device, VkRenderPass renderPass, VkPipelineLayout layout, const std::vector<std::shared_ptr<Shader>>& shaders, VkExtent2D extent)
 {
     std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
     for (const auto& shader : shaders)
@@ -42,14 +42,14 @@ VkPipeline createGraphicsPipeline(VkDevice device, VkRenderPass renderPass, VkPi
     VkViewport viewport = {};
     viewport.x = 0.0f;
     viewport.y = 0.0f;
-    viewport.width = 800.0f; // Placeholder
-    viewport.height = 600.0f; // Placeholder
+    viewport.width = extent.width;
+    viewport.height = extent.height;
     viewport.minDepth = 0.0f;
     viewport.maxDepth = 1.0f;
 
     VkRect2D scissor = {};
-    scissor.offset = {0, 0};
-    scissor.extent = {800, 600}; // Placeholder
+    scissor.offset = { 0, 0 };
+    scissor.extent = extent;
 
     VkPipelineViewportStateCreateInfo viewportState = {};
     viewportState.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
@@ -175,13 +175,32 @@ VkPipeline createGraphicsPipeline(VkDevice device, VkRenderPass renderPass, VkPi
     return graphicsPipeline;
 }
 
+VkPipeline createComputePipeline(VkDevice device, VkPipelineLayout layout, const std::shared_ptr<Shader>& computeShader)
+{
+    VkPipelineShaderStageCreateInfo shaderStage = computeShader->CreateShaderStageInfo();
 
+    VkComputePipelineCreateInfo pipelineInfo = {};
+    pipelineInfo.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+    pipelineInfo.stage = shaderStage;
+    pipelineInfo.layout = layout;
+    pipelineInfo.flags = 0; // Optional
+    pipelineInfo.basePipelineHandle = VK_NULL_HANDLE; // Optional
+    pipelineInfo.basePipelineIndex = -1; // Optional
+    pipelineInfo.pNext = nullptr;
+
+    VkPipeline computePipeline;
+    if (vkCreateComputePipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo, nullptr, &computePipeline) != VK_SUCCESS)
+    {
+        return nullptr;
+    }
+    return computePipeline;
+}
 
 Pipeline::Pipeline(const std::shared_ptr<VulkanManager>& vulkanManager, const std::vector<std::shared_ptr<Shader>>& shaders, const std::shared_ptr<RenderPass>& renderPass)
     : mVulkanManager(vulkanManager), mShaders(shaders), mRenderPass(renderPass)
 {
-    mLayout = createPipelineLayout(mVulkanManager->Device());
-    mPipeline = createGraphicsPipeline(mVulkanManager->Device(), mRenderPass->RenderPassHandle(), mLayout, mShaders);
+    mLayout = createPipelineLayout(mVulkanManager->Device(), mShaders[0]->DescriptorSetLayout());
+    mPipeline = createGraphicsPipeline(mVulkanManager->Device(), mRenderPass->RenderPassHandle(), mLayout, mShaders, mRenderPass->Extent());
 }
 
 Pipeline::~Pipeline()
@@ -202,5 +221,35 @@ void Pipeline::Bind(const std::shared_ptr<CommandBuffer>& commandBuffer)
         vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS, mPipeline);
 
         vkCmdDraw(cmdBuffer, 3, 1, 0, 0);
-    });
+        });
+}
+
+ComputePipeline::ComputePipeline(const std::shared_ptr<VulkanManager>& vulkanManager, const std::shared_ptr<Shader>& computeShader)
+    : mVulkanManager(vulkanManager), mComputeShader(computeShader)
+{
+    mLayout = createPipelineLayout(mVulkanManager->Device(), mComputeShader->DescriptorSetLayout());
+    mPipeline = createComputePipeline(mVulkanManager->Device(), mLayout, mComputeShader);
+}
+
+ComputePipeline::~ComputePipeline()
+{
+    if (mLayout != VK_NULL_HANDLE)
+    {
+        vkDestroyPipelineLayout(mVulkanManager->Device(), mLayout, nullptr);
+    }
+    if (mPipeline != VK_NULL_HANDLE)
+    {
+        vkDestroyPipeline(mVulkanManager->Device(), mPipeline, nullptr);
+    }
+}
+
+void ComputePipeline::Dispatch(const std::shared_ptr<CommandBuffer>& commandBuffer, uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ)
+{
+    commandBuffer->ExecuteCommand([this, groupCountX, groupCountY, groupCountZ](VkCommandBuffer cmdBuffer) {
+        VkDescriptorSet descriptorSet = mComputeShader->DescriptorSet();
+        vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, mLayout, 0, 1, &descriptorSet, 0, nullptr);
+
+        vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, mPipeline);
+        vkCmdDispatch(cmdBuffer, groupCountX, groupCountY, groupCountZ);
+        });
 }

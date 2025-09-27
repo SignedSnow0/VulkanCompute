@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <vulkan/vulkan.h>
 
 #include "Window.h"
@@ -14,7 +15,9 @@ public:
     [[nodiscard]] inline VkPhysicalDevice PhysicalDevice() const { return mPhysicalDevice; }
     [[nodiscard]] inline VkDevice Device() const { return mDevice; }
     [[nodiscard]] inline VkQueue ComputeQueue() const { return mComputeQueue; }
-    [[nodiscard]] inline uint32_t ComputeQueueFamilyIndex() const { return 0; } // Placeholder, should be set during physical device selection
+    [[nodiscard]] inline uint32_t ComputeQueueFamilyIndex() const { return 0; }
+
+    void SubmitCommnand(std::function<void(VkCommandBuffer)> func);
 
 private:
     VkInstance mInstance;
@@ -22,4 +25,7 @@ private:
     VkPhysicalDevice mPhysicalDevice;
     VkDevice mDevice;
     VkQueue mComputeQueue;
+
+    VkCommandPool mCommandPool;
+    VkCommandBuffer mCommandBuffer;
 };

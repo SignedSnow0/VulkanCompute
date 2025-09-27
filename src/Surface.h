@@ -21,6 +21,7 @@ public:
 
     uint32_t WaitNextImage();
     void SubmitCommandBuffer(const std::shared_ptr<CommandBuffer>& commandBuffer, uint32_t commandBufferIndex);
+	void ChangeLayout(const std::shared_ptr<CommandBuffer>& commandBuffer, VkImageLayout newLayout);
 
 private:
     std::shared_ptr<VulkanManager> mVulkanManager;
@@ -33,4 +34,5 @@ private:
     std::vector<VkImageView> mSwapchainImageViews;
     VkSemaphore mSemaphore;
     VkFence mFence;
+	VkImageLayout mLayout;
 };

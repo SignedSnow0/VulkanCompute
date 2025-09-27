@@ -204,6 +204,37 @@ VkQueue getComputeQueue(VkDevice device)
     return computeQueue;
 }
 
+static VkCommandPool createCommandPool(VkDevice device, uint32_t queueFamilyIndex)
+{
+    VkCommandPoolCreateInfo poolInfo{};
+    poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    poolInfo.queueFamilyIndex = queueFamilyIndex;
+    poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+
+    VkCommandPool commandPool;
+    if (vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS)
+    {
+        return nullptr;
+    }
+    return commandPool;
+}
+
+VkCommandBuffer createCommandBuffer(VkDevice device, VkCommandPool commandPool)
+{
+    VkCommandBufferAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    allocInfo.commandPool = commandPool;
+    allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    allocInfo.commandBufferCount = 1;
+
+    VkCommandBuffer commandBuffer;
+    if (vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer) != VK_SUCCESS)
+    {
+        return nullptr;
+    }
+    return commandBuffer;
+}
+
 VulkanManager::VulkanManager(Window& window)
 {
     uint32_t glfwExtensionCount = 0;
@@ -232,10 +263,23 @@ VulkanManager::VulkanManager(Window& window)
     mPhysicalDevice = choosePhysicalDevice(mInstance);
     mDevice = createDevice(mPhysicalDevice, layers, deviceExtensions);
     mComputeQueue = getComputeQueue(mDevice);
+
+    mCommandPool = createCommandPool(mDevice, 0);
+    mCommandBuffer = createCommandBuffer(mDevice, mCommandPool);
 }
 
 VulkanManager::~VulkanManager()
 {
+    if (mCommandBuffer) {
+        vkFreeCommandBuffers(mDevice, mCommandPool, 1, &mCommandBuffer);
+        mCommandBuffer = nullptr;
+    }
+
+    if (mCommandPool) {
+        vkDestroyCommandPool(mDevice, mCommandPool, nullptr);
+        mCommandPool = nullptr;
+    }
+
     if (mDevice) {
         vkDestroyDevice(mDevice, nullptr);
         mDevice = nullptr;
@@ -249,4 +293,27 @@ VulkanManager::~VulkanManager()
         vkDestroyInstance(mInstance, nullptr);
         mInstance = nullptr;
     }
+}
+
+void VulkanManager::SubmitCommnand(std::function<void(VkCommandBuffer)> func)
+{
+    vkResetCommandPool(mDevice, mCommandPool, 0);
+
+    VkCommandBufferBeginInfo beginInfo{};
+    beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+    vkBeginCommandBuffer(mCommandBuffer, &beginInfo);
+
+    func(mCommandBuffer);
+
+    vkEndCommandBuffer(mCommandBuffer);
+
+    VkSubmitInfo submitInfo{};
+    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    submitInfo.commandBufferCount = 1;
+    submitInfo.pCommandBuffers = &mCommandBuffer;
+
+    vkQueueSubmit(mComputeQueue, 1, &submitInfo, VK_NULL_HANDLE);
+    vkQueueWaitIdle(mComputeQueue);
 }
