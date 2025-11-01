@@ -17,8 +17,8 @@
     }
 
 class VulkanManager {
-  public:
-    VulkanManager(Window &window);
+public:
+    VulkanManager(Window& window);
     ~VulkanManager();
 
     [[nodiscard]] inline VkInstance Instance() const { return mInstance; }
@@ -29,9 +29,10 @@ class VulkanManager {
     [[nodiscard]] inline VkQueue ComputeQueue() const { return mComputeQueue; }
     [[nodiscard]] inline uint32_t ComputeQueueFamilyIndex() const { return 0; }
 
-    void SubmitCommnand(std::function<void(VkCommandBuffer)> func);
+    void WaitIdle() const;
+    void SubmitCommand(std::function<void(VkCommandBuffer)> func);
 
-  private:
+private:
     VkInstance mInstance;
     VkDebugUtilsMessengerEXT mDebugMessenger;
     VkPhysicalDevice mPhysicalDevice;

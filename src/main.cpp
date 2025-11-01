@@ -8,11 +8,12 @@
 #include "VulkanManager.h"
 #include "Window.h"
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
     Window window(1280, 720, "Vulkan Compute");
 
     auto vulkanManager = std::make_shared<VulkanManager>(window);
-    auto surface = std::make_shared<Surface>(vulkanManager, window);
+    auto surface = std::make_shared<Surface>(vulkanManager, window, VK_IMAGE_LAYOUT_GENERAL);
+
     auto renderPass = std::make_shared<RenderPass>(vulkanManager, surface);
 
     auto vertex = std::make_shared<Shader>(
@@ -21,7 +22,7 @@ int main(int argc, char **argv) {
     auto fragment = std::make_shared<Shader>(
         vulkanManager, "assets/shaders/default.frag.glsl",
         ShaderStage::Fragment, surface->ImageCount());
-    std::vector<std::shared_ptr<Shader>> shaders = {vertex, fragment};
+    std::vector<std::shared_ptr<Shader>> shaders = { vertex, fragment };
 
     auto pipeline =
         std::make_shared<Pipeline>(vulkanManager, shaders, renderPass);
@@ -45,14 +46,15 @@ int main(int argc, char **argv) {
 
         computeShader->BindSurfaceAsImage(surface, 0, imageIndex);
         computePipeline->Dispatch(commandBuffer,
-                                  (surface->Extent().width + 15) / 16,
-                                  (surface->Extent().height + 15) / 16, 1);
+            (surface->Extent().width + 7) / 8,
+            (surface->Extent().height + 7) / 8, 1);
 
+        surface->ChangeLayout(commandBuffer, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
         uint32_t submitIndex = commandBuffer->End();
-        surface->ChangeLayout(commandBuffer,
-                              VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
         surface->SubmitCommandBuffer(commandBuffer, submitIndex);
     }
+
+    vulkanManager->WaitIdle();
 
     return 0;
 }

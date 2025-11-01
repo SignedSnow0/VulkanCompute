@@ -2,7 +2,7 @@
 
 VkPipelineLayout
 createPipelineLayout(VkDevice device,
-                     VkDescriptorSetLayout mDescriptorSetLayout) {
+    VkDescriptorSetLayout mDescriptorSetLayout) {
     VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipelineLayoutInfo.setLayoutCount = 1;
@@ -12,15 +12,15 @@ createPipelineLayout(VkDevice device,
 
     VkPipelineLayout pipelineLayout;
     VK_CHECK(vkCreatePipelineLayout(device, &pipelineLayoutInfo, nullptr,
-                                    &pipelineLayout));
+        &pipelineLayout));
     return pipelineLayout;
 }
 
 VkPipeline createGraphicsPipeline(
     VkDevice device, VkRenderPass renderPass, VkPipelineLayout layout,
-    const std::vector<std::shared_ptr<Shader>> &shaders, VkExtent2D extent) {
+    const std::vector<std::shared_ptr<Shader>>& shaders, VkExtent2D extent) {
     std::vector<VkPipelineShaderStageCreateInfo> shaderStages;
-    for (const auto &shader : shaders) {
+    for (const auto& shader : shaders) {
         shaderStages.push_back(shader->CreateShaderStageInfo());
     }
 
@@ -49,7 +49,7 @@ VkPipeline createGraphicsPipeline(
     viewport.maxDepth = 1.0f;
 
     VkRect2D scissor = {};
-    scissor.offset = {0, 0};
+    scissor.offset = { 0, 0 };
     scissor.extent = extent;
 
     VkPipelineViewportStateCreateInfo viewportState = {};
@@ -175,12 +175,12 @@ VkPipeline createGraphicsPipeline(
 
     VkPipeline graphicsPipeline;
     VK_CHECK(vkCreateGraphicsPipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo,
-                                       nullptr, &graphicsPipeline));
+        nullptr, &graphicsPipeline));
     return graphicsPipeline;
 }
 
 VkPipeline createComputePipeline(VkDevice device, VkPipelineLayout layout,
-                                 const std::shared_ptr<Shader> &computeShader) {
+    const std::shared_ptr<Shader>& computeShader) {
     VkPipelineShaderStageCreateInfo shaderStage =
         computeShader->CreateShaderStageInfo();
 
@@ -195,48 +195,44 @@ VkPipeline createComputePipeline(VkDevice device, VkPipelineLayout layout,
 
     VkPipeline computePipeline;
     VK_CHECK(vkCreateComputePipelines(device, VK_NULL_HANDLE, 1, &pipelineInfo,
-                                      nullptr, &computePipeline));
+        nullptr, &computePipeline));
     return computePipeline;
 }
 
-Pipeline::Pipeline(const std::shared_ptr<VulkanManager> &vulkanManager,
-                   const std::vector<std::shared_ptr<Shader>> &shaders,
-                   const std::shared_ptr<RenderPass> &renderPass)
+Pipeline::Pipeline(const std::shared_ptr<VulkanManager>& vulkanManager,
+    const std::vector<std::shared_ptr<Shader>>& shaders,
+    const std::shared_ptr<RenderPass>& renderPass)
     : mVulkanManager(vulkanManager), mShaders(shaders),
-      mRenderPass(renderPass) {
+    mRenderPass(renderPass) {
     mLayout = createPipelineLayout(mVulkanManager->Device(),
-                                   mShaders[0]->DescriptorSetLayout());
+        mShaders[0]->DescriptorSetLayout());
     mPipeline = createGraphicsPipeline(mVulkanManager->Device(),
-                                       mRenderPass->RenderPassHandle(), mLayout,
-                                       mShaders, mRenderPass->Extent());
+        mRenderPass->RenderPassHandle(), mLayout,
+        mShaders, mRenderPass->Extent());
 }
 
 Pipeline::~Pipeline() {
-    if (mLayout != VK_NULL_HANDLE) {
-        vkDestroyPipelineLayout(mVulkanManager->Device(), mLayout, nullptr);
-    }
-    if (mPipeline != VK_NULL_HANDLE) {
-        vkDestroyPipeline(mVulkanManager->Device(), mPipeline, nullptr);
-    }
+    vkDestroyPipelineLayout(mVulkanManager->Device(), mLayout, nullptr);
+    vkDestroyPipeline(mVulkanManager->Device(), mPipeline, nullptr);
 }
 
-void Pipeline::Bind(const std::shared_ptr<CommandBuffer> &commandBuffer) {
+void Pipeline::Bind(const std::shared_ptr<CommandBuffer>& commandBuffer) {
     commandBuffer->ExecuteCommand([this](VkCommandBuffer cmdBuffer) {
         vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
-                          mPipeline);
+            mPipeline);
 
         vkCmdDraw(cmdBuffer, 3, 1, 0, 0);
-    });
+        });
 }
 
 ComputePipeline::ComputePipeline(
-    const std::shared_ptr<VulkanManager> &vulkanManager,
-    const std::shared_ptr<Shader> &computeShader)
+    const std::shared_ptr<VulkanManager>& vulkanManager,
+    const std::shared_ptr<Shader>& computeShader)
     : mVulkanManager(vulkanManager), mComputeShader(computeShader) {
     mLayout = createPipelineLayout(mVulkanManager->Device(),
-                                   mComputeShader->DescriptorSetLayout());
+        mComputeShader->DescriptorSetLayout());
     mPipeline = createComputePipeline(mVulkanManager->Device(), mLayout,
-                                      mComputeShader);
+        mComputeShader);
 }
 
 ComputePipeline::~ComputePipeline() {
@@ -249,15 +245,15 @@ ComputePipeline::~ComputePipeline() {
 }
 
 void ComputePipeline::Dispatch(
-    const std::shared_ptr<CommandBuffer> &commandBuffer, uint32_t groupCountX,
+    const std::shared_ptr<CommandBuffer>& commandBuffer, uint32_t groupCountX,
     uint32_t groupCountY, uint32_t groupCountZ) {
     commandBuffer->ExecuteCommand([this, groupCountX, groupCountY,
-                                   groupCountZ](VkCommandBuffer cmdBuffer) {
-        VkDescriptorSet descriptorSet = mComputeShader->DescriptorSet();
-        vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
-                                mLayout, 0, 1, &descriptorSet, 0, nullptr);
+        groupCountZ](VkCommandBuffer cmdBuffer) {
+            VkDescriptorSet descriptorSet = mComputeShader->DescriptorSet();
+            vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
+                mLayout, 0, 1, &descriptorSet, 0, nullptr);
 
-        vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, mPipeline);
-        vkCmdDispatch(cmdBuffer, groupCountX, groupCountY, groupCountZ);
-    });
+            vkCmdBindPipeline(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE, mPipeline);
+            vkCmdDispatch(cmdBuffer, groupCountX, groupCountY, groupCountZ);
+        });
 }

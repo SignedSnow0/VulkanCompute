@@ -44,37 +44,53 @@ VkRenderPass createRenderPass(VkDevice device, VkFormat format) {
 
 std::vector<VkFramebuffer>
 createFramebuffers(VkDevice device, VkRenderPass renderPass,
-                   const std::vector<VkImageView> &imageViews,
-                   VkExtent2D extent) {
-    std::vector<VkFramebuffer> framebuffers(imageViews.size());
+    const std::vector<VkImage>& images,
+    VkExtent2D extent, VkFormat format) {
+    std::vector<VkFramebuffer> framebuffers(images.size());
 
-    for (size_t i = 0; i < imageViews.size(); i++) {
-        VkImageView attachments[] = {imageViews[i]};
+    for (size_t i = 0; i < images.size(); i++) {
+        VkImageViewCreateInfo viewInfo = {};
+        viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        viewInfo.image = images[i];
+        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        viewInfo.format = format;
+        viewInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+        viewInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+        viewInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+        viewInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+        viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        viewInfo.subresourceRange.baseMipLevel = 0;
+        viewInfo.subresourceRange.levelCount = 1;
+        viewInfo.subresourceRange.baseArrayLayer = 0;
+        viewInfo.subresourceRange.layerCount = 1;
+
+        VkImageView imageView;
+        VK_CHECK(vkCreateImageView(device, &viewInfo, nullptr, &imageView));
 
         VkFramebufferCreateInfo framebufferInfo = {};
         framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
         framebufferInfo.renderPass = renderPass;
         framebufferInfo.attachmentCount = 1;
-        framebufferInfo.pAttachments = attachments;
+        framebufferInfo.pAttachments = &imageView;
         framebufferInfo.width = extent.width;
         framebufferInfo.height = extent.height;
         framebufferInfo.layers = 1;
 
         VK_CHECK(vkCreateFramebuffer(device, &framebufferInfo, nullptr,
-                                     &framebuffers[i]));
+            &framebuffers[i]));
     }
 
     return framebuffers;
 }
 
-RenderPass::RenderPass(const std::shared_ptr<VulkanManager> &vulkanManager,
-                       const std::shared_ptr<Surface> &surface)
+RenderPass::RenderPass(const std::shared_ptr<VulkanManager>& vulkanManager,
+    const std::shared_ptr<Surface>& surface)
     : mVulkanManager(vulkanManager), mSurface(surface) {
     mRenderPass =
         createRenderPass(mVulkanManager->Device(), mSurface->Format());
     mFramebuffers =
         createFramebuffers(mVulkanManager->Device(), mRenderPass,
-                           mSurface->ImageViews(), mSurface->Extent());
+            mSurface->Images(), mSurface->Extent(), surface->Format());
 }
 
 RenderPass::~RenderPass() {
@@ -87,8 +103,8 @@ RenderPass::~RenderPass() {
     }
 }
 
-void RenderPass::Begin(const std::shared_ptr<CommandBuffer> &commandBuffer,
-                       uint32_t index) {
+void RenderPass::Begin(const std::shared_ptr<CommandBuffer>& commandBuffer,
+    uint32_t index) {
     if (index >= mFramebuffers.size()) {
         return;
     }
@@ -98,19 +114,19 @@ void RenderPass::Begin(const std::shared_ptr<CommandBuffer> &commandBuffer,
         renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
         renderPassInfo.renderPass = mRenderPass;
         renderPassInfo.framebuffer = mFramebuffers[index];
-        renderPassInfo.renderArea.offset = {0, 0};
+        renderPassInfo.renderArea.offset = { 0, 0 };
         renderPassInfo.renderArea.extent = mSurface->Extent();
 
-        VkClearValue clearColor = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
+        VkClearValue clearColor = { {{0.0f, 0.0f, 0.0f, 1.0f}} };
         renderPassInfo.clearValueCount = 1;
         renderPassInfo.pClearValues = &clearColor;
 
         vkCmdBeginRenderPass(cmdBuffer, &renderPassInfo,
-                             VK_SUBPASS_CONTENTS_INLINE);
-    });
+            VK_SUBPASS_CONTENTS_INLINE);
+        });
 }
 
-void RenderPass::End(const std::shared_ptr<CommandBuffer> &commandBuffer) {
+void RenderPass::End(const std::shared_ptr<CommandBuffer>& commandBuffer) {
     commandBuffer->ExecuteCommand(
         [&](VkCommandBuffer cmdBuffer) { vkCmdEndRenderPass(cmdBuffer); });
 }

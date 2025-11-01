@@ -12,6 +12,7 @@ add_executable(VulkanCompute
     src/CommandBuffer.cpp
     src/Image.cpp
     src/Buffer.cpp
+    src/Logger.cpp
 )
 
 set_property(TARGET VulkanCompute PROPERTY CXX_STANDARD 20)

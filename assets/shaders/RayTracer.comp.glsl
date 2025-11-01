@@ -1,5 +1,7 @@
 #version 460
 
+layout (rgba8, set = 0, binding = 0) uniform image2D framebuffer;
+
 struct Ray {
     vec3 origin;
     vec3 direction;
@@ -26,9 +28,7 @@ bool intersectSphere(Ray ray, Sphere sphere, out float t) {
     }
 }
 
-layout (rgba8, set = 0, binding = 0) uniform image2D framebuffer;
-
-layout (local_size_x = 16, local_size_y = 16) in;
+layout (local_size_x = 8, local_size_y = 8) in;
 void main()
 {
     ivec2 pixelCoords = ivec2(gl_GlobalInvocationID.xy);

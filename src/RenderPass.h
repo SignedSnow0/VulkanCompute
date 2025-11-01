@@ -7,9 +7,9 @@
 #include "VulkanManager.h"
 
 class RenderPass {
-  public:
-    RenderPass(const std::shared_ptr<VulkanManager> &vulkanManager,
-               const std::shared_ptr<Surface> &surface);
+public:
+    RenderPass(const std::shared_ptr<VulkanManager>& vulkanManager,
+        const std::shared_ptr<Surface>& surface);
     ~RenderPass();
 
     [[nodiscard]] inline VkRenderPass RenderPassHandle() const {
@@ -19,11 +19,11 @@ class RenderPass {
         return mSurface->Extent();
     }
 
-    void Begin(const std::shared_ptr<CommandBuffer> &commandBuffer,
-               uint32_t index);
-    void End(const std::shared_ptr<CommandBuffer> &commandBuffer);
+    void Begin(const std::shared_ptr<CommandBuffer>& commandBuffer,
+        uint32_t index);
+    void End(const std::shared_ptr<CommandBuffer>& commandBuffer);
 
-  private:
+private:
     std::shared_ptr<VulkanManager> mVulkanManager;
     std::shared_ptr<Surface> mSurface;
 

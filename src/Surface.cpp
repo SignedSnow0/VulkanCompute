@@ -2,39 +2,94 @@
 
 #include <GLFW/glfw3native.h>
 
-VkSurfaceKHR createSurface(GLFWwindow *window, VkInstance instance) {
-    VkSurfaceKHR surface;
-    if (glfwCreateWindowSurface(instance, window, nullptr, &surface) !=
-        VK_SUCCESS) {
-        return nullptr;
+void changeLayout(VkCommandBuffer cmdBuffer, VkImageLayout oldLayout, VkImageLayout newLayout, VkImage image) {
+    VkImageMemoryBarrier barrier = {};
+    barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+    barrier.oldLayout = oldLayout;
+    barrier.newLayout = newLayout;
+    barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    barrier.image = image;
+    barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    barrier.subresourceRange.baseMipLevel = 0;
+    barrier.subresourceRange.levelCount = 1;
+    barrier.subresourceRange.baseArrayLayer = 0;
+    barrier.subresourceRange.layerCount = 1;
+    VkPipelineStageFlags sourceStage;
+    VkPipelineStageFlags destinationStage;
+    if (oldLayout == newLayout) {
+        return;
     }
 
+    if (oldLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL &&
+        newLayout == VK_IMAGE_LAYOUT_GENERAL) {
+        barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+        sourceStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        destinationStage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+    }
+    else if (oldLayout == VK_IMAGE_LAYOUT_GENERAL &&
+        newLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL) {
+        barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        sourceStage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+        destinationStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    }
+    else if (oldLayout == VK_IMAGE_LAYOUT_UNDEFINED &&
+        newLayout == VK_IMAGE_LAYOUT_GENERAL) {
+        barrier.srcAccessMask = 0;
+        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+        sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+        destinationStage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+    }
+    else if (oldLayout == VK_IMAGE_LAYOUT_GENERAL &&
+        newLayout == VK_IMAGE_LAYOUT_UNDEFINED) {
+        barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+        barrier.dstAccessMask = 0;
+        sourceStage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+        destinationStage = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+    }
+    else {
+        LOG_WARNING(std::format(
+            "Unsupported layout transition from {} to {}",
+            string_VkImageLayout(oldLayout),
+            string_VkImageLayout(newLayout)));
+        return;
+    }
+
+    vkCmdPipelineBarrier(cmdBuffer, sourceStage, destinationStage, 0, 0,
+        nullptr, 0, nullptr, 1, &barrier);
+}
+
+VkSurfaceKHR createSurface(GLFWwindow* window, VkInstance instance) {
+    VkSurfaceKHR surface;
+    VK_CHECK(glfwCreateWindowSurface(instance, window, nullptr, &surface));
     return surface;
 }
 
 VkSwapchainKHR createSwapChain(VkPhysicalDevice physicalDevice, VkDevice device,
-                               VkSurfaceKHR surface, VkFormat format,
-                               VkExtent2D extent) {
+    VkSurfaceKHR surface, VkFormat format,
+    VkExtent2D extent) {
     VkSurfaceCapabilitiesKHR surfaceCapabilities;
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface,
-                                              &surfaceCapabilities);
+        &surfaceCapabilities);
 
     uint32_t formatCount;
     vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatCount,
-                                         nullptr);
+        nullptr);
     std::vector<VkSurfaceFormatKHR> surfaceFormats(formatCount);
     vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, surface, &formatCount,
-                                         surfaceFormats.data());
+        surfaceFormats.data());
 
     uint32_t presentModeCount;
     vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, surface,
-                                              &presentModeCount, nullptr);
+        &presentModeCount, nullptr);
     std::vector<VkPresentModeKHR> presentModes(presentModeCount);
     vkGetPhysicalDeviceSurfacePresentModesKHR(
         physicalDevice, surface, &presentModeCount, presentModes.data());
 
     VkPresentModeKHR presentMode = VK_PRESENT_MODE_FIFO_KHR;
-    for (const auto &availablePresentMode : presentModes) {
+    for (const auto& availablePresentMode : presentModes) {
         if (availablePresentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
             presentMode = availablePresentMode;
             break;
@@ -69,7 +124,7 @@ VkSwapchainKHR createSwapChain(VkPhysicalDevice physicalDevice, VkDevice device,
 }
 
 std::vector<VkImage> getSwapChainImages(VkDevice device,
-                                        VkSwapchainKHR swapchain) {
+    VkSwapchainKHR swapchain) {
     uint32_t imageCount;
     vkGetSwapchainImagesKHR(device, swapchain, &imageCount, nullptr);
     std::vector<VkImage> images(imageCount);
@@ -79,8 +134,8 @@ std::vector<VkImage> getSwapChainImages(VkDevice device,
 }
 
 std::vector<VkImageView> createImageViews(VkDevice device,
-                                          const std::vector<VkImage> &images,
-                                          VkFormat format) {
+    const std::vector<VkImage>& images,
+    VkFormat format) {
     std::vector<VkImageView> imageViews;
     imageViews.resize(images.size());
 
@@ -112,11 +167,7 @@ VkSemaphore createSemaphore(VkDevice device) {
     semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
     VkSemaphore semaphore;
-    if (vkCreateSemaphore(device, &semaphoreInfo, nullptr, &semaphore) !=
-        VK_SUCCESS) {
-        return nullptr;
-    }
-
+    VK_CHECK(vkCreateSemaphore(device, &semaphoreInfo, nullptr, &semaphore));
     return semaphore;
 }
 
@@ -130,17 +181,17 @@ VkFence createFence(VkDevice device, bool signaled) {
     return fence;
 }
 
-Surface::Surface(const std::shared_ptr<VulkanManager> &vulkanManager,
-                 const Window &window)
+Surface::Surface(const std::shared_ptr<VulkanManager>& vulkanManager,
+    const Window& window, VkImageLayout initialLayout)
     : mVulkanManager(vulkanManager) {
-    mFormat = VK_FORMAT_B8G8R8A8_UNORM;
-    mExtent = {window.Width(), window.Height()};
+    mFormat = VK_FORMAT_R8G8B8A8_UNORM;
+    mExtent = { window.Width(), window.Height() };
 
     mSurface = createSurface(window.Handle(), mVulkanManager->Instance());
 
     mSwapchain =
         createSwapChain(mVulkanManager->PhysicalDevice(),
-                        mVulkanManager->Device(), mSurface, mFormat, mExtent);
+            mVulkanManager->Device(), mSurface, mFormat, mExtent);
     mSwapchainImages = getSwapChainImages(mVulkanManager->Device(), mSwapchain);
     mSwapchainImageViews =
         createImageViews(mVulkanManager->Device(), mSwapchainImages, mFormat);
@@ -148,25 +199,21 @@ Surface::Surface(const std::shared_ptr<VulkanManager> &vulkanManager,
     mSemaphore = createSemaphore(mVulkanManager->Device());
     mFence = createFence(mVulkanManager->Device(), true);
 
-    mLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    mLayouts = std::vector<VkImageLayout>(mSwapchainImages.size(), VK_IMAGE_LAYOUT_UNDEFINED);
+
+    vulkanManager->SubmitCommand([this, initialLayout](VkCommandBuffer cmdBuffer) {
+        for (size_t i = 0; i < mSwapchainImages.size(); ++i) {
+            changeLayout(cmdBuffer, mLayouts[i], initialLayout, mSwapchainImages[i]);
+            mLayouts[i] = initialLayout;
+        }
+        });
 }
 
 Surface::~Surface() {
-    if (mFence) {
-        vkDestroyFence(mVulkanManager->Device(), mFence, nullptr);
-    }
-
-    if (mSemaphore) {
-        vkDestroySemaphore(mVulkanManager->Device(), mSemaphore, nullptr);
-    }
-
-    if (mSwapchain) {
-        vkDestroySwapchainKHR(mVulkanManager->Device(), mSwapchain, nullptr);
-    }
-
-    if (mSurface) {
-        vkDestroySurfaceKHR(mVulkanManager->Instance(), mSurface, nullptr);
-    }
+    vkDestroyFence(mVulkanManager->Device(), mFence, nullptr);
+    vkDestroySemaphore(mVulkanManager->Device(), mSemaphore, nullptr);
+    vkDestroySwapchainKHR(mVulkanManager->Device(), mSwapchain, nullptr);
+    vkDestroySurfaceKHR(mVulkanManager->Instance(), mSurface, nullptr);
 }
 
 uint32_t Surface::WaitNextImage() {
@@ -174,24 +221,24 @@ uint32_t Surface::WaitNextImage() {
     vkResetFences(mVulkanManager->Device(), 1, &mFence);
     uint32_t imageIndex;
     vkAcquireNextImageKHR(mVulkanManager->Device(), mSwapchain, UINT64_MAX,
-                          mSemaphore, VK_NULL_HANDLE, &imageIndex);
+        mSemaphore, VK_NULL_HANDLE, &imageIndex);
     return imageIndex;
 }
 
 void Surface::SubmitCommandBuffer(
-    const std::shared_ptr<CommandBuffer> &commandBuffer,
+    const std::shared_ptr<CommandBuffer>& commandBuffer,
     uint32_t commandBufferIndex) {
     VkSubmitInfo submitInfo = {};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-    VkSemaphore waitSemaphores[] = {mSemaphore};
+    VkSemaphore waitSemaphores[] = { mSemaphore };
     VkPipelineStageFlags waitStages[] = {
-        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
     submitInfo.waitSemaphoreCount = 1;
     submitInfo.pWaitSemaphores = waitSemaphores;
     submitInfo.pWaitDstStageMask = waitStages;
 
-    VkSemaphore signalSemaphores[] = {mSemaphore};
+    VkSemaphore signalSemaphores[] = { mSemaphore };
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = signalSemaphores;
 
@@ -207,7 +254,7 @@ void Surface::SubmitCommandBuffer(
     presentInfo.waitSemaphoreCount = 1;
     presentInfo.pWaitSemaphores = signalSemaphores;
 
-    VkSwapchainKHR swapChains[] = {mSwapchain};
+    VkSwapchainKHR swapChains[] = { mSwapchain };
     presentInfo.swapchainCount = 1;
     presentInfo.pSwapchains = swapChains;
     presentInfo.pImageIndices = &commandBufferIndex;
@@ -216,83 +263,10 @@ void Surface::SubmitCommandBuffer(
     VK_CHECK(vkQueuePresentKHR(mVulkanManager->ComputeQueue(), &presentInfo));
 }
 
-void Surface::ChangeLayout(const std::shared_ptr<CommandBuffer> &commandBuffer,
-                           VkImageLayout newLayout) {
+void Surface::ChangeLayout(const std::shared_ptr<CommandBuffer>& commandBuffer, VkImageLayout newLayout) {
     uint32_t index = commandBuffer->CurrentBufferIndex();
-    commandBuffer->ExecuteCommand([this, newLayout,
-                                   index](VkCommandBuffer cmdBuffer) {
-        VkImageMemoryBarrier barrier = {};
-        barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-        barrier.oldLayout = mLayout;
-        barrier.newLayout = newLayout;
-        barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-        barrier.image = mSwapchainImages[index];
-        barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        barrier.subresourceRange.baseMipLevel = 0;
-        barrier.subresourceRange.levelCount = 1;
-        barrier.subresourceRange.baseArrayLayer = 0;
-        barrier.subresourceRange.layerCount = 1;
-        VkPipelineStageFlags sourceStage;
-        VkPipelineStageFlags destinationStage;
-        if (mLayout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR &&
-            newLayout == VK_IMAGE_LAYOUT_GENERAL) {
-            barrier.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-            barrier.dstAccessMask =
-                VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT;
-            sourceStage = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
-            destinationStage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT |
-                               VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
-                               VK_PIPELINE_STAGE_VERTEX_SHADER_BIT;
-        } else if (mLayout == VK_IMAGE_LAYOUT_GENERAL &&
-                   newLayout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR) {
-            barrier.srcAccessMask =
-                VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT;
-            barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-            sourceStage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT |
-                          VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
-                          VK_PIPELINE_STAGE_VERTEX_SHADER_BIT;
-            destinationStage = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
-        } else if (mLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL &&
-                   newLayout == VK_IMAGE_LAYOUT_GENERAL) {
-            barrier.srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-            barrier.dstAccessMask =
-                VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT;
-            sourceStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-            destinationStage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT |
-                               VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
-                               VK_PIPELINE_STAGE_VERTEX_SHADER_BIT;
-        } else if (mLayout == VK_IMAGE_LAYOUT_GENERAL &&
-                   newLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL) {
-            barrier.srcAccessMask =
-                VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT;
-            barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-            sourceStage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT |
-                          VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
-                          VK_PIPELINE_STAGE_VERTEX_SHADER_BIT;
-            destinationStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        } else if (mLayout == VK_IMAGE_LAYOUT_UNDEFINED &&
-                   newLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL) {
-            barrier.srcAccessMask = 0;
-            barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-            sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-            destinationStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        } else if (mLayout == VK_IMAGE_LAYOUT_UNDEFINED &&
-                   newLayout == VK_IMAGE_LAYOUT_GENERAL) {
-            barrier.srcAccessMask = 0;
-            barrier.dstAccessMask =
-                VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT;
-            sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-            destinationStage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT |
-                               VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT |
-                               VK_PIPELINE_STAGE_VERTEX_SHADER_BIT;
-        } else {
-            return;
-        }
+    auto cmdBuffer = commandBuffer->CurrentBuffer();
 
-        vkCmdPipelineBarrier(cmdBuffer, sourceStage, destinationStage, 0, 0,
-                             nullptr, 0, nullptr, 1, &barrier);
-
-        mLayout = newLayout;
-    });
+    changeLayout(cmdBuffer, mLayouts[index], newLayout, mSwapchainImages[index]);
+    mLayouts[index] = newLayout;
 }

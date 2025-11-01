@@ -32,8 +32,8 @@ VkShaderStageFlagBits getVulkanShaderStage(ShaderStage stage) {
     }
 }
 
-std::vector<uint32_t> compileShader(const std::string &filename,
-                                    shaderc_shader_kind kind) {
+std::vector<uint32_t> compileShader(const std::string& filename,
+    shaderc_shader_kind kind) {
     shaderc::Compiler compiler;
     shaderc::CompileOptions options;
 
@@ -41,11 +41,12 @@ std::vector<uint32_t> compileShader(const std::string &filename,
 
     std::ifstream file(filename);
     if (!file.is_open()) {
+        LOG_WARNING(std::format("Failed to open shader file: {}", filename));
         return {};
     }
 
     std::string source((std::istreambuf_iterator<char>(file)),
-                       std::istreambuf_iterator<char>());
+        std::istreambuf_iterator<char>());
     file.close();
 
     shaderc::SpvCompilationResult module =
@@ -53,7 +54,7 @@ std::vector<uint32_t> compileShader(const std::string &filename,
 
     if (module.GetCompilationStatus() != shaderc_compilation_status_success) {
         LOG_WARNING(std::format("Error compiling shader {}: {}", filename,
-                                module.GetErrorMessage()));
+            module.GetErrorMessage()));
         return {};
     }
 
@@ -61,7 +62,7 @@ std::vector<uint32_t> compileShader(const std::string &filename,
 }
 
 VkShaderModule createShaderModule(VkDevice device,
-                                  const std::vector<uint32_t> &code) {
+    const std::vector<uint32_t>& code) {
     VkShaderModuleCreateInfo createInfo = {};
     createInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
     createInfo.codeSize = code.size() * sizeof(uint32_t);
@@ -72,16 +73,16 @@ VkShaderModule createShaderModule(VkDevice device,
     return shaderModule;
 }
 
-void createDescriptorSet(VkDevice device, const std::vector<uint32_t> &bytecode,
-                         VkShaderStageFlagBits stage, uint32_t setCount,
-                         VkDescriptorSetLayout &outLayout,
-                         VkDescriptorPool &outPool, VkDescriptorSet &outSet) {
+void createDescriptorSet(VkDevice device, const std::vector<uint32_t>& bytecode,
+    VkShaderStageFlagBits stage, uint32_t setCount,
+    VkDescriptorSetLayout& outLayout,
+    VkDescriptorPool& outPool, VkDescriptorSet& outSet) {
     spirv_cross::Compiler glslCompiler(bytecode);
     spirv_cross::ShaderResources resources =
         glslCompiler.get_shader_resources();
 
     std::vector<VkDescriptorSetLayoutBinding> bindings;
-    for (const auto &resource : resources.storage_buffers) {
+    for (const auto& resource : resources.storage_buffers) {
         uint32_t binding =
             glslCompiler.get_decoration(resource.id, spv::DecorationBinding);
         VkDescriptorSetLayoutBinding layoutBinding = {};
@@ -92,7 +93,7 @@ void createDescriptorSet(VkDevice device, const std::vector<uint32_t> &bytecode,
         bindings.push_back(layoutBinding);
     }
 
-    for (const auto &resource : resources.sampled_images) {
+    for (const auto& resource : resources.sampled_images) {
         uint32_t binding =
             glslCompiler.get_decoration(resource.id, spv::DecorationBinding);
         VkDescriptorSetLayoutBinding layoutBinding = {};
@@ -104,7 +105,7 @@ void createDescriptorSet(VkDevice device, const std::vector<uint32_t> &bytecode,
         bindings.push_back(layoutBinding);
     }
 
-    for (const auto &resource : resources.uniform_buffers) {
+    for (const auto& resource : resources.uniform_buffers) {
         uint32_t binding =
             glslCompiler.get_decoration(resource.id, spv::DecorationBinding);
         VkDescriptorSetLayoutBinding layoutBinding = {};
@@ -115,7 +116,7 @@ void createDescriptorSet(VkDevice device, const std::vector<uint32_t> &bytecode,
         bindings.push_back(layoutBinding);
     }
 
-    for (const auto &resource : resources.storage_images) {
+    for (const auto& resource : resources.storage_images) {
         uint32_t binding =
             glslCompiler.get_decoration(resource.id, spv::DecorationBinding);
         VkDescriptorSetLayoutBinding layoutBinding = {};
@@ -131,12 +132,11 @@ void createDescriptorSet(VkDevice device, const std::vector<uint32_t> &bytecode,
     layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
     layoutInfo.pBindings = bindings.data();
 
-    VkDescriptorSetLayout descriptorSetLayout;
     VK_CHECK(vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr,
-                                         &descriptorSetLayout));
+        &outLayout));
 
     std::vector<VkDescriptorPoolSize> poolSizes;
-    for (const auto &binding : bindings) {
+    for (const auto& binding : bindings) {
         VkDescriptorPoolSize poolSize = {};
         poolSize.type = binding.descriptorType;
         poolSize.descriptorCount = binding.descriptorCount * setCount;
@@ -149,8 +149,7 @@ void createDescriptorSet(VkDevice device, const std::vector<uint32_t> &bytecode,
     poolInfo.pPoolSizes = poolSizes.data();
     poolInfo.maxSets = setCount;
 
-    VK_CHECK(
-        vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &outLayout));
+    VK_CHECK(vkCreateDescriptorPool(device, &poolInfo, nullptr, &outPool));
 
     VkDescriptorSetAllocateInfo allocInfo = {};
     allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
@@ -158,24 +157,24 @@ void createDescriptorSet(VkDevice device, const std::vector<uint32_t> &bytecode,
     allocInfo.descriptorSetCount = 1;
     allocInfo.pSetLayouts = &outLayout;
 
-    VK_CHECK(vkCreateDescriptorPool(device, &poolInfo, nullptr, &outPool));
+    VK_CHECK(vkAllocateDescriptorSets(device, &allocInfo, &outSet));
 }
 
-Shader::Shader(const std::shared_ptr<VulkanManager> &vulkanManager,
-               const std::string &filename, ShaderStage stage,
-               uint32_t setCount)
+Shader::Shader(const std::shared_ptr<VulkanManager>& vulkanManager,
+    const std::string& filename, ShaderStage stage,
+    uint32_t setCount)
     : mVulkanManager(vulkanManager), mStage(getVulkanShaderStage(stage)) {
     auto spirv = compileShader(filename, getShaderKind(stage));
     mShader = createShaderModule(mVulkanManager->Device(), spirv);
 
     createDescriptorSet(mVulkanManager->Device(), spirv, mStage, setCount,
-                        mDescriptorSetLayout, mDescriptorPool, mDescriptorSet);
+        mDescriptorSetLayout, mDescriptorPool, mDescriptorSet);
+
+    LOG_INFO(std::format("Created shader: {}", filename));
 }
 
 Shader::~Shader() {
-    if (mShader != VK_NULL_HANDLE) {
-        vkDestroyShaderModule(mVulkanManager->Device(), mShader, nullptr);
-    }
+    vkDestroyShaderModule(mVulkanManager->Device(), mShader, nullptr);
 }
 
 VkPipelineShaderStageCreateInfo Shader::CreateShaderStageInfo() const {
@@ -189,7 +188,7 @@ VkPipelineShaderStageCreateInfo Shader::CreateShaderStageInfo() const {
     return shaderStageInfo;
 }
 
-void Shader::BindImage(const Image &image, uint32_t binding) {
+void Shader::BindImage(const Image& image, uint32_t binding) {
     VkDescriptorImageInfo imageInfo = {};
     imageInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
     imageInfo.imageView = image.ImageView();
@@ -205,11 +204,11 @@ void Shader::BindImage(const Image &image, uint32_t binding) {
     descriptorWrite.pImageInfo = &imageInfo;
 
     vkUpdateDescriptorSets(mVulkanManager->Device(), 1, &descriptorWrite, 0,
-                           nullptr);
+        nullptr);
 }
 
-void Shader::BindSurfaceAsImage(const std::shared_ptr<Surface> &surface,
-                                uint32_t binding, uint32_t index) {
+void Shader::BindSurfaceAsImage(const std::shared_ptr<Surface>& surface,
+    uint32_t binding, uint32_t index) {
     if (index >= surface->ImageCount()) {
         return;
     }
@@ -235,9 +234,28 @@ void Shader::BindSurfaceAsImage(const std::shared_ptr<Surface> &surface,
     VkSampler sampler;
     vkCreateSampler(mVulkanManager->Device(), &samplerInfo, nullptr, &sampler);
 
+    VkImageViewCreateInfo imageViewInfo = {};
+    imageViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    imageViewInfo.image = surface->Images()[index];
+    imageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    imageViewInfo.format = surface->Format();
+    imageViewInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+    imageViewInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+    imageViewInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+    imageViewInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+    imageViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    imageViewInfo.subresourceRange.baseMipLevel = 0;
+    imageViewInfo.subresourceRange.levelCount = 1;
+    imageViewInfo.subresourceRange.baseArrayLayer = 0;
+    imageViewInfo.subresourceRange.layerCount = 1;
+
+    VkImageView imageView;
+    VK_CHECK(vkCreateImageView(mVulkanManager->Device(), &imageViewInfo,
+        nullptr, &imageView));
+
     VkDescriptorImageInfo imageInfo = {};
-    imageInfo.imageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    imageInfo.imageView = surface->ImageViews()[index];
+    imageInfo.imageLayout = surface->ImageLayouts()[index];
+    imageInfo.imageView = imageView;
     imageInfo.sampler = sampler;
 
     VkWriteDescriptorSet descriptorWrite = {};
@@ -250,5 +268,5 @@ void Shader::BindSurfaceAsImage(const std::shared_ptr<Surface> &surface,
     descriptorWrite.pImageInfo = &imageInfo;
 
     vkUpdateDescriptorSets(mVulkanManager->Device(), 1, &descriptorWrite, 0,
-                           nullptr);
+        nullptr);
 }
