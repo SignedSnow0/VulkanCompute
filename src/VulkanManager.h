@@ -1,25 +1,37 @@
 #pragma once
 
 #include <functional>
+#include <vulkan/vk_enum_string_helper.h>
 #include <vulkan/vulkan.h>
 
+#include "Logger.h"
 #include "Window.h"
 
-class VulkanManager
-{
-public:
-    VulkanManager(Window& window);
+#define VK_CHECK(fn)                                                           \
+    {                                                                          \
+        ::VkResult res = (fn);                                                 \
+        if (res != VK_SUCCESS) {                                               \
+            LOG_WARNING(std::format("Vulkan call error: VkResult is {}",       \
+                                    string_VkResult(res)));                    \
+        }                                                                      \
+    }
+
+class VulkanManager {
+  public:
+    VulkanManager(Window &window);
     ~VulkanManager();
 
     [[nodiscard]] inline VkInstance Instance() const { return mInstance; }
-    [[nodiscard]] inline VkPhysicalDevice PhysicalDevice() const { return mPhysicalDevice; }
+    [[nodiscard]] inline VkPhysicalDevice PhysicalDevice() const {
+        return mPhysicalDevice;
+    }
     [[nodiscard]] inline VkDevice Device() const { return mDevice; }
     [[nodiscard]] inline VkQueue ComputeQueue() const { return mComputeQueue; }
     [[nodiscard]] inline uint32_t ComputeQueueFamilyIndex() const { return 0; }
 
     void SubmitCommnand(std::function<void(VkCommandBuffer)> func);
 
-private:
+  private:
     VkInstance mInstance;
     VkDebugUtilsMessengerEXT mDebugMessenger;
     VkPhysicalDevice mPhysicalDevice;

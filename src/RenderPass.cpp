@@ -20,13 +20,13 @@ VkRenderPass createRenderPass(VkDevice device, VkFormat format) {
     subpass.colorAttachmentCount = 1;
     subpass.pColorAttachments = &colorAttachmentRef;
 
- VkSubpassDependency dependency = {};
-        dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-        dependency.dstSubpass = 0;
-        dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        dependency.srcAccessMask = 0;
-        dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+    VkSubpassDependency dependency = {};
+    dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+    dependency.dstSubpass = 0;
+    dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency.srcAccessMask = 0;
+    dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 
     VkRenderPassCreateInfo renderPassInfo = {};
     renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
@@ -38,18 +38,18 @@ VkRenderPass createRenderPass(VkDevice device, VkFormat format) {
     renderPassInfo.pDependencies = &dependency;
 
     VkRenderPass renderPass;
-    if (vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass) != VK_SUCCESS) {
-        return nullptr;
-    }
-
+    VK_CHECK(vkCreateRenderPass(device, &renderPassInfo, nullptr, &renderPass));
     return renderPass;
 }
 
-std::vector<VkFramebuffer> createFramebuffers(VkDevice device, VkRenderPass renderPass, const std::vector<VkImageView>& imageViews, VkExtent2D extent) {
+std::vector<VkFramebuffer>
+createFramebuffers(VkDevice device, VkRenderPass renderPass,
+                   const std::vector<VkImageView> &imageViews,
+                   VkExtent2D extent) {
     std::vector<VkFramebuffer> framebuffers(imageViews.size());
 
     for (size_t i = 0; i < imageViews.size(); i++) {
-        VkImageView attachments[] = { imageViews[i] };
+        VkImageView attachments[] = {imageViews[i]};
 
         VkFramebufferCreateInfo framebufferInfo = {};
         framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
@@ -60,42 +60,40 @@ std::vector<VkFramebuffer> createFramebuffers(VkDevice device, VkRenderPass rend
         framebufferInfo.height = extent.height;
         framebufferInfo.layers = 1;
 
-        if (vkCreateFramebuffer(device, &framebufferInfo, nullptr, &framebuffers[i]) != VK_SUCCESS) {
-            return {};
-        }
+        VK_CHECK(vkCreateFramebuffer(device, &framebufferInfo, nullptr,
+                                     &framebuffers[i]));
     }
 
     return framebuffers;
 }
 
-RenderPass::RenderPass(const std::shared_ptr<VulkanManager>& vulkanManager, const std::shared_ptr<Surface>& surface)
-    : mVulkanManager(vulkanManager), mSurface(surface)
-{
-    mRenderPass = createRenderPass(mVulkanManager->Device(), mSurface->Format());
-    mFramebuffers = createFramebuffers(mVulkanManager->Device(), mRenderPass, mSurface->ImageViews(), mSurface->Extent());
+RenderPass::RenderPass(const std::shared_ptr<VulkanManager> &vulkanManager,
+                       const std::shared_ptr<Surface> &surface)
+    : mVulkanManager(vulkanManager), mSurface(surface) {
+    mRenderPass =
+        createRenderPass(mVulkanManager->Device(), mSurface->Format());
+    mFramebuffers =
+        createFramebuffers(mVulkanManager->Device(), mRenderPass,
+                           mSurface->ImageViews(), mSurface->Extent());
 }
 
-RenderPass::~RenderPass()
-{
-    for (auto framebuffer : mFramebuffers) 
-    {
+RenderPass::~RenderPass() {
+    for (auto framebuffer : mFramebuffers) {
         vkDestroyFramebuffer(mVulkanManager->Device(), framebuffer, nullptr);
     }
 
-    if (mRenderPass) 
-    {
+    if (mRenderPass) {
         vkDestroyRenderPass(mVulkanManager->Device(), mRenderPass, nullptr);
     }
 }
 
-void RenderPass::Begin(const std::shared_ptr<CommandBuffer>& commandBuffer, uint32_t index)
-{
-    if (index >= mFramebuffers.size())
-    {
+void RenderPass::Begin(const std::shared_ptr<CommandBuffer> &commandBuffer,
+                       uint32_t index) {
+    if (index >= mFramebuffers.size()) {
         return;
     }
 
-    commandBuffer->ExecuteCommand([&](VkCommandBuffer cmdBuffer) {      
+    commandBuffer->ExecuteCommand([&](VkCommandBuffer cmdBuffer) {
         VkRenderPassBeginInfo renderPassInfo = {};
         renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
         renderPassInfo.renderPass = mRenderPass;
@@ -107,13 +105,12 @@ void RenderPass::Begin(const std::shared_ptr<CommandBuffer>& commandBuffer, uint
         renderPassInfo.clearValueCount = 1;
         renderPassInfo.pClearValues = &clearColor;
 
-        vkCmdBeginRenderPass(cmdBuffer, &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdBeginRenderPass(cmdBuffer, &renderPassInfo,
+                             VK_SUBPASS_CONTENTS_INLINE);
     });
 }
 
-void RenderPass::End(const std::shared_ptr<CommandBuffer>& commandBuffer)
-{
-    commandBuffer->ExecuteCommand([&](VkCommandBuffer cmdBuffer) {
-        vkCmdEndRenderPass(cmdBuffer);
-    });
+void RenderPass::End(const std::shared_ptr<CommandBuffer> &commandBuffer) {
+    commandBuffer->ExecuteCommand(
+        [&](VkCommandBuffer cmdBuffer) { vkCmdEndRenderPass(cmdBuffer); });
 }

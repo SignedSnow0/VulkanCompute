@@ -1,107 +1,116 @@
 #include "VulkanManager.h"
+#include "Logger.h"
+#include "vulkan/vulkan_core.h"
 
-#include <vector>
-#include <iostream>
+#include <format>
 #include <string.h>
+#include <vector>
 
-static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
-    VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
-    VkDebugUtilsMessageTypeFlagsEXT messageType,
-    const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
-    void* pUserData)
-{
-    std::cerr << "[Validation layer]: " << pCallbackData->pMessage << std::endl;
+static VKAPI_ATTR VkBool32 VKAPI_CALL
+debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+              VkDebugUtilsMessageTypeFlagsEXT messageType,
+              const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
+              void *pUserData) {
+    switch (messageSeverity) {
+    case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT:
+        LOG_DEBUG(
+            std::format("[Validation layer]: {}", pCallbackData->pMessage));
+        break;
+    case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:
+        LOG_INFO(
+            std::format("[Validation layer]: {}", pCallbackData->pMessage));
+        break;
+    case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
+        LOG_WARNING(
+            std::format("[Validation layer]: {}", pCallbackData->pMessage));
+        break;
+    case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
+        LOG_ERROR(
+            std::format("[Validation layer]: {}", pCallbackData->pMessage));
+        break;
+    default:
+        break;
+    }
 
     return VK_FALSE;
 }
 
 VkResult createDebugUtilsMessengerEXT(
-    VkInstance instance,
-    const VkDebugUtilsMessengerCreateInfoEXT* pCreateInfo,
-    const VkAllocationCallbacks* pAllocator,
-    VkDebugUtilsMessengerEXT* pDebugMessenger)
-{
-    auto func = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
-    if (func != nullptr)
-    {
+    VkInstance instance, const VkDebugUtilsMessengerCreateInfoEXT *pCreateInfo,
+    const VkAllocationCallbacks *pAllocator,
+    VkDebugUtilsMessengerEXT *pDebugMessenger) {
+    auto func = (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(
+        instance, "vkCreateDebugUtilsMessengerEXT");
+    if (func != nullptr) {
         return func(instance, pCreateInfo, pAllocator, pDebugMessenger);
-    }
-    else
-    {
+    } else {
         return VK_ERROR_EXTENSION_NOT_PRESENT;
     }
 }
 
-void destroyDebugUtilsMessengerEXT(
-    VkInstance instance,
-    VkDebugUtilsMessengerEXT debugMessenger,
-    const VkAllocationCallbacks* pAllocator)
-{
-    auto func = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
-    if (func != nullptr)
-    {
+void destroyDebugUtilsMessengerEXT(VkInstance instance,
+                                   VkDebugUtilsMessengerEXT debugMessenger,
+                                   const VkAllocationCallbacks *pAllocator) {
+    auto func = (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(
+        instance, "vkDestroyDebugUtilsMessengerEXT");
+    if (func != nullptr) {
         func(instance, debugMessenger, pAllocator);
     }
 }
 
-bool instanceLayersSupported(const std::vector<const char*>& layers)
-{
+bool instanceLayersSupported(const std::vector<const char *> &layers) {
     uint32_t layerCount;
     vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
 
     std::vector<VkLayerProperties> availableLayers(layerCount);
     vkEnumerateInstanceLayerProperties(&layerCount, availableLayers.data());
 
-    for (const char* layerName : layers)
-    {
+    for (const char *layerName : layers) {
         bool layerFound = false;
-        for (const auto& layerProperties : availableLayers)
-        {
-            if (strcmp(layerName, layerProperties.layerName) == 0)
-            {
+        for (const auto &layerProperties : availableLayers) {
+            if (strcmp(layerName, layerProperties.layerName) == 0) {
                 layerFound = true;
                 break;
             }
         }
-        if (!layerFound)
-        {
+        if (!layerFound) {
+            LOG_WARNING(std::format("Required instance layer \"{}\" not found",
+                                    layerName));
             return false;
         }
     }
     return true;
 }
 
-bool deviceExtensionsSupported(VkPhysicalDevice device, const std::vector<const char*>& extensions)
-{
+bool deviceExtensionsSupported(VkPhysicalDevice device,
+                               const std::vector<const char *> &extensions) {
     uint32_t extensionCount;
-    vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, nullptr);
+    vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount,
+                                         nullptr);
 
     std::vector<VkExtensionProperties> availableExtensions(extensionCount);
-    vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount, availableExtensions.data());
+    vkEnumerateDeviceExtensionProperties(device, nullptr, &extensionCount,
+                                         availableExtensions.data());
 
-    for (const char* extensionName : extensions)
-    {
+    for (const char *extensionName : extensions) {
         bool extensionFound = false;
-        for (const auto& extensionProperties : availableExtensions)
-        {
-            if (strcmp(extensionName, extensionProperties.extensionName) == 0)
-            {
+        for (const auto &extensionProperties : availableExtensions) {
+            if (strcmp(extensionName, extensionProperties.extensionName) == 0) {
                 extensionFound = true;
                 break;
             }
         }
-        if (!extensionFound)
-        {
+        if (!extensionFound) {
             return false;
         }
     }
     return true;
 }
 
-VkInstance createInstance(const std::vector<const char*>& requiredLayers, const std::vector<const char*>& requiredExtensions)
-{
-    if (!instanceLayersSupported(requiredLayers))
-    {
+VkInstance createInstance(const std::vector<const char *> &requiredLayers,
+                          const std::vector<const char *> &requiredExtensions) {
+    if (!instanceLayersSupported(requiredLayers)) {
+        LOG_ERROR(std::format("Required instance layers are not supported"));
         return nullptr;
     }
 
@@ -118,61 +127,75 @@ VkInstance createInstance(const std::vector<const char*>& requiredLayers, const 
     createInfo.pApplicationInfo = &appInfo;
     createInfo.enabledLayerCount = static_cast<uint32_t>(requiredLayers.size());
     createInfo.ppEnabledLayerNames = requiredLayers.data();
-    createInfo.enabledExtensionCount = static_cast<uint32_t>(requiredExtensions.size());
+    createInfo.enabledExtensionCount =
+        static_cast<uint32_t>(requiredExtensions.size());
     createInfo.ppEnabledExtensionNames = requiredExtensions.data();
 
     VkInstance instance;
-    if (vkCreateInstance(&createInfo, nullptr, &instance) != VK_SUCCESS)
-    {
-        return nullptr;
-    }
-
+    VK_CHECK(vkCreateInstance(&createInfo, nullptr, &instance));
     return instance;
 }
 
 #ifndef NDEBUG
-VkDebugUtilsMessengerEXT createDebugMessenger(VkInstance instance)
-{
+VkDebugUtilsMessengerEXT createDebugMessenger(VkInstance instance) {
     VkDebugUtilsMessengerCreateInfoEXT createInfo = {};
     createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-    createInfo.messageSeverity = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
+    createInfo.messageSeverity =
+        VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
         VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
         VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
     createInfo.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
-        VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
-        VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+                             VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+                             VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
     createInfo.pfnUserCallback = debugCallback;
 
     VkDebugUtilsMessengerEXT debugMessenger;
-    if (createDebugUtilsMessengerEXT(instance, &createInfo, nullptr, &debugMessenger) != VK_SUCCESS)
-    {
-        return nullptr;
-    }
+    VK_CHECK(createDebugUtilsMessengerEXT(instance, &createInfo, nullptr,
+                                          &debugMessenger));
     return debugMessenger;
 }
 #endif
 
-VkPhysicalDevice choosePhysicalDevice(VkInstance instance)
-{
+VkPhysicalDevice choosePhysicalDevice(VkInstance instance) {
     uint32_t deviceCount = 0;
     vkEnumeratePhysicalDevices(instance, &deviceCount, nullptr);
-    if (deviceCount == 0)
-    {
+    if (deviceCount == 0) {
         return nullptr;
     }
 
     std::vector<VkPhysicalDevice> devices(deviceCount);
     vkEnumeratePhysicalDevices(instance, &deviceCount, devices.data());
 
+    for (const auto &device : devices) {
+        VkPhysicalDeviceProperties deviceProperties;
+        vkGetPhysicalDeviceProperties(device, &deviceProperties);
+        if (deviceProperties.deviceType ==
+                VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU ||
+            deviceProperties.deviceType ==
+                VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU) {
+            LOG_INFO(std::format("Selected discrete/integrated GPU: {}",
+                                 deviceProperties.deviceName));
+            return device;
+        }
+    }
+
+    VkPhysicalDeviceProperties deviceProperties;
+    vkGetPhysicalDeviceProperties(devices[0], &deviceProperties);
+
+    LOG_INFO(
+        std::format("Selected default GPU: {}", deviceProperties.deviceName));
+
     return devices[0];
 }
 
-VkDevice createDevice(VkPhysicalDevice physicalDevice, const std::vector<const char*>& requiredLayers, const std::vector<const char*>& requiredExtensions)
-{
+VkDevice createDevice(VkPhysicalDevice physicalDevice,
+                      const std::vector<const char *> &requiredLayers,
+                      const std::vector<const char *> &requiredExtensions) {
     float queuePriority = 1.0f;
     VkDeviceQueueCreateInfo queueCreateInfo = {};
     queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-    queueCreateInfo.queueFamilyIndex = 0; // Assume family index 0 supports compute
+    queueCreateInfo.queueFamilyIndex =
+        0; // Assume family index 0 supports compute
     queueCreateInfo.queueCount = 1;
     queueCreateInfo.pQueuePriorities = &queuePriority;
 
@@ -183,44 +206,37 @@ VkDevice createDevice(VkPhysicalDevice physicalDevice, const std::vector<const c
     createInfo.queueCreateInfoCount = 1;
     createInfo.pQueueCreateInfos = &queueCreateInfo;
     createInfo.pEnabledFeatures = &deviceFeatures;
-    createInfo.enabledExtensionCount = static_cast<uint32_t>(requiredExtensions.size());
+    createInfo.enabledExtensionCount =
+        static_cast<uint32_t>(requiredExtensions.size());
     createInfo.ppEnabledExtensionNames = requiredExtensions.data();
     createInfo.enabledLayerCount = static_cast<uint32_t>(requiredLayers.size());
     createInfo.ppEnabledLayerNames = requiredLayers.data();
 
     VkDevice device;
-    if (vkCreateDevice(physicalDevice, &createInfo, nullptr, &device) != VK_SUCCESS)
-    {
-        return nullptr;
-    }
-
+    VK_CHECK(vkCreateDevice(physicalDevice, &createInfo, nullptr, &device));
     return device;
 }
 
-VkQueue getComputeQueue(VkDevice device)
-{
+VkQueue getComputeQueue(VkDevice device) {
     VkQueue computeQueue;
     vkGetDeviceQueue(device, 0, 0, &computeQueue); // Assume family index 0
     return computeQueue;
 }
 
-static VkCommandPool createCommandPool(VkDevice device, uint32_t queueFamilyIndex)
-{
+static VkCommandPool createCommandPool(VkDevice device,
+                                       uint32_t queueFamilyIndex) {
     VkCommandPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     poolInfo.queueFamilyIndex = queueFamilyIndex;
     poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 
     VkCommandPool commandPool;
-    if (vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool) != VK_SUCCESS)
-    {
-        return nullptr;
-    }
+    VK_CHECK(vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool));
     return commandPool;
 }
 
-VkCommandBuffer createCommandBuffer(VkDevice device, VkCommandPool commandPool)
-{
+VkCommandBuffer createCommandBuffer(VkDevice device,
+                                    VkCommandPool commandPool) {
     VkCommandBufferAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     allocInfo.commandPool = commandPool;
@@ -228,29 +244,24 @@ VkCommandBuffer createCommandBuffer(VkDevice device, VkCommandPool commandPool)
     allocInfo.commandBufferCount = 1;
 
     VkCommandBuffer commandBuffer;
-    if (vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer) != VK_SUCCESS)
-    {
-        return nullptr;
-    }
+    VK_CHECK(vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer));
     return commandBuffer;
 }
 
-VulkanManager::VulkanManager(Window& window)
-{
+VulkanManager::VulkanManager(Window &window) {
     uint32_t glfwExtensionCount = 0;
-    const char** glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-    std::vector<const char*> instanceExtensions(glfwExtensions, glfwExtensions + glfwExtensionCount);
+    const char **glfwExtensions =
+        glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
+    std::vector<const char *> instanceExtensions(
+        glfwExtensions, glfwExtensions + glfwExtensionCount);
 #ifndef NDEBUG
     instanceExtensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
 #endif
 
-    std::vector<const char*> deviceExtensions =
-    {
-        VK_KHR_SWAPCHAIN_EXTENSION_NAME
-    };
+    std::vector<const char *> deviceExtensions = {
+        VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 
-    std::vector<const char*> layers =
-    {
+    std::vector<const char *> layers = {
 #ifndef NDEBUG
         "VK_LAYER_KHRONOS_validation"
 #endif
@@ -266,10 +277,11 @@ VulkanManager::VulkanManager(Window& window)
 
     mCommandPool = createCommandPool(mDevice, 0);
     mCommandBuffer = createCommandBuffer(mDevice, mCommandPool);
+
+    LOG_INFO("VulkanManager initialized successfully");
 }
 
-VulkanManager::~VulkanManager()
-{
+VulkanManager::~VulkanManager() {
     if (mCommandBuffer) {
         vkFreeCommandBuffers(mDevice, mCommandPool, 1, &mCommandBuffer);
         mCommandBuffer = nullptr;
@@ -295,8 +307,7 @@ VulkanManager::~VulkanManager()
     }
 }
 
-void VulkanManager::SubmitCommnand(std::function<void(VkCommandBuffer)> func)
-{
+void VulkanManager::SubmitCommnand(std::function<void(VkCommandBuffer)> func) {
     vkResetCommandPool(mDevice, mCommandPool, 0);
 
     VkCommandBufferBeginInfo beginInfo{};
