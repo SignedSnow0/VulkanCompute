@@ -11,7 +11,7 @@ Window::Window(int width, int height, const char* title) {
     glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
     mWindow = glfwCreateWindow(width, height, title, nullptr, nullptr);
 
-    LOG_INFO(std::format("Created window '{}' ({}x{})", title, width, height));
+    LOG_INFO("Created window '{}' ({}x{})", title, width, height);
 }
 
 Window::~Window() {

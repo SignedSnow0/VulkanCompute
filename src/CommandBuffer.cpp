@@ -78,21 +78,17 @@ void CommandBuffer::Begin(uint32_t index) {
     mCurrentBufferIndex = index;
 }
 
-uint32_t CommandBuffer::End() {
+void CommandBuffer::End() {
     if (!mCurrentBufferIndex) {
-        return -1;
+        return;
     }
 
     VkCommandBuffer commandBuffer =
         mCommandBuffers[mCurrentBufferIndex.value()];
 
-    if (vkEndCommandBuffer(commandBuffer) != VK_SUCCESS) {
-        return -1;
-    }
+    VK_CHECK(vkEndCommandBuffer(commandBuffer));
 
-    uint32_t index = mCurrentBufferIndex.value();
     mCurrentBufferIndex = std::nullopt;
-    return index;
 }
 
 void CommandBuffer::ExecuteCommand(

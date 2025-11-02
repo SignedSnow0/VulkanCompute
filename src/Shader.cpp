@@ -41,7 +41,7 @@ std::vector<uint32_t> compileShader(const std::string& filename,
 
     std::ifstream file(filename);
     if (!file.is_open()) {
-        LOG_WARNING(std::format("Failed to open shader file: {}", filename));
+        LOG_WARNING("Failed to open shader file: {}", filename);
         return {};
     }
 
@@ -53,8 +53,8 @@ std::vector<uint32_t> compileShader(const std::string& filename,
         compiler.CompileGlslToSpv(source, kind, filename.c_str(), options);
 
     if (module.GetCompilationStatus() != shaderc_compilation_status_success) {
-        LOG_WARNING(std::format("Error compiling shader {}: {}", filename,
-            module.GetErrorMessage()));
+        LOG_WARNING("Error compiling shader {}: {}", filename,
+            module.GetErrorMessage());
         return {};
     }
 
@@ -75,8 +75,8 @@ VkShaderModule createShaderModule(VkDevice device,
 
 void createDescriptorSet(VkDevice device, const std::vector<uint32_t>& bytecode,
     VkShaderStageFlagBits stage, uint32_t setCount,
-    VkDescriptorSetLayout& outLayout,
-    VkDescriptorPool& outPool, VkDescriptorSet& outSet) {
+    std::vector<VkDescriptorSetLayout>& outLayouts,
+    VkDescriptorPool& outPool, std::vector<VkDescriptorSet>& outSets) {
     spirv_cross::Compiler glslCompiler(bytecode);
     spirv_cross::ShaderResources resources =
         glslCompiler.get_shader_resources();
@@ -132,8 +132,10 @@ void createDescriptorSet(VkDevice device, const std::vector<uint32_t>& bytecode,
     layoutInfo.bindingCount = static_cast<uint32_t>(bindings.size());
     layoutInfo.pBindings = bindings.data();
 
-    VK_CHECK(vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr,
-        &outLayout));
+    outLayouts.resize(setCount);
+    for (auto& layout : outLayouts) {
+        VK_CHECK(vkCreateDescriptorSetLayout(device, &layoutInfo, nullptr, &layout));
+    }
 
     std::vector<VkDescriptorPoolSize> poolSizes;
     for (const auto& binding : bindings) {
@@ -154,10 +156,11 @@ void createDescriptorSet(VkDevice device, const std::vector<uint32_t>& bytecode,
     VkDescriptorSetAllocateInfo allocInfo = {};
     allocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     allocInfo.descriptorPool = outPool;
-    allocInfo.descriptorSetCount = 1;
-    allocInfo.pSetLayouts = &outLayout;
+    allocInfo.descriptorSetCount = setCount;
+    allocInfo.pSetLayouts = outLayouts.data();
 
-    VK_CHECK(vkAllocateDescriptorSets(device, &allocInfo, &outSet));
+    outSets.resize(setCount);
+    VK_CHECK(vkAllocateDescriptorSets(device, &allocInfo, outSets.data()));
 }
 
 Shader::Shader(const std::shared_ptr<VulkanManager>& vulkanManager,
@@ -168,12 +171,16 @@ Shader::Shader(const std::shared_ptr<VulkanManager>& vulkanManager,
     mShader = createShaderModule(mVulkanManager->Device(), spirv);
 
     createDescriptorSet(mVulkanManager->Device(), spirv, mStage, setCount,
-        mDescriptorSetLayout, mDescriptorPool, mDescriptorSet);
+        mDescriptorSetLayouts, mDescriptorPool, mDescriptorSets);
 
-    LOG_INFO(std::format("Created shader: {}", filename));
+    LOG_INFO("Created shader: {}", filename);
 }
 
 Shader::~Shader() {
+    for (const auto& layout : mDescriptorSetLayouts) {
+        vkDestroyDescriptorSetLayout(mVulkanManager->Device(), layout, nullptr);
+    }
+    vkDestroyDescriptorPool(mVulkanManager->Device(), mDescriptorPool, nullptr);
     vkDestroyShaderModule(mVulkanManager->Device(), mShader, nullptr);
 }
 
@@ -188,7 +195,7 @@ VkPipelineShaderStageCreateInfo Shader::CreateShaderStageInfo() const {
     return shaderStageInfo;
 }
 
-void Shader::BindImage(const Image& image, uint32_t binding) {
+void Shader::BindImage(const Image& image, uint32_t binding, uint32_t frameIndex) {
     VkDescriptorImageInfo imageInfo = {};
     imageInfo.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
     imageInfo.imageView = image.ImageView();
@@ -196,7 +203,7 @@ void Shader::BindImage(const Image& image, uint32_t binding) {
 
     VkWriteDescriptorSet descriptorWrite = {};
     descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    descriptorWrite.dstSet = mDescriptorSet;
+    descriptorWrite.dstSet = mDescriptorSets[frameIndex];
     descriptorWrite.dstBinding = binding;
     descriptorWrite.dstArrayElement = 0;
     descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
@@ -213,54 +220,14 @@ void Shader::BindSurfaceAsImage(const std::shared_ptr<Surface>& surface,
         return;
     }
 
-    VkSamplerCreateInfo samplerInfo = {};
-    samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-    samplerInfo.magFilter = VK_FILTER_LINEAR;
-    samplerInfo.minFilter = VK_FILTER_LINEAR;
-    samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
-    samplerInfo.anisotropyEnable = VK_FALSE;
-    samplerInfo.maxAnisotropy = 1.0f;
-    samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-    samplerInfo.unnormalizedCoordinates = VK_FALSE;
-    samplerInfo.compareEnable = VK_FALSE;
-    samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-    samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-    samplerInfo.mipLodBias = 0.0f;
-    samplerInfo.minLod = 0.0f;
-    samplerInfo.maxLod = 0.0f;
-
-    VkSampler sampler;
-    vkCreateSampler(mVulkanManager->Device(), &samplerInfo, nullptr, &sampler);
-
-    VkImageViewCreateInfo imageViewInfo = {};
-    imageViewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    imageViewInfo.image = surface->Images()[index];
-    imageViewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    imageViewInfo.format = surface->Format();
-    imageViewInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-    imageViewInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-    imageViewInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-    imageViewInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-    imageViewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    imageViewInfo.subresourceRange.baseMipLevel = 0;
-    imageViewInfo.subresourceRange.levelCount = 1;
-    imageViewInfo.subresourceRange.baseArrayLayer = 0;
-    imageViewInfo.subresourceRange.layerCount = 1;
-
-    VkImageView imageView;
-    VK_CHECK(vkCreateImageView(mVulkanManager->Device(), &imageViewInfo,
-        nullptr, &imageView));
-
     VkDescriptorImageInfo imageInfo = {};
     imageInfo.imageLayout = surface->ImageLayouts()[index];
-    imageInfo.imageView = imageView;
-    imageInfo.sampler = sampler;
+    imageInfo.imageView = surface->ImageViews()[index];
+    imageInfo.sampler = surface->Samplers()[index];
 
     VkWriteDescriptorSet descriptorWrite = {};
     descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    descriptorWrite.dstSet = mDescriptorSet;
+    descriptorWrite.dstSet = mDescriptorSets[index];
     descriptorWrite.dstBinding = binding;
     descriptorWrite.dstArrayElement = 0;
     descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;

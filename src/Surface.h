@@ -25,11 +25,16 @@ public:
     [[nodiscard]] inline std::vector<VkImageLayout> ImageLayouts() const {
         return mLayouts;
     }
+    [[nodiscard]] inline std::vector<VkImageView> ImageViews() const {
+        return mSwapchainImageViews;
+    }
+    [[nodiscard]] inline std::vector<VkSampler> Samplers() const {
+        return mSamplers;
+    }
 
     uint32_t WaitNextImage();
-    void
-        SubmitCommandBuffer(const std::shared_ptr<CommandBuffer>& commandBuffer,
-            uint32_t commandBufferIndex);
+    void SubmitCommandBuffer(const std::shared_ptr<CommandBuffer>& commandBuffer,
+        uint32_t commandBufferIndex);
     void ChangeLayout(const std::shared_ptr<CommandBuffer>& commandBuffer, VkImageLayout newLayout);
 
 private:
@@ -41,7 +46,10 @@ private:
     VkSwapchainKHR mSwapchain;
     std::vector<VkImage> mSwapchainImages;
     std::vector<VkImageView> mSwapchainImageViews;
-    VkSemaphore mSemaphore;
-    VkFence mFence;
+    std::vector<VkSampler> mSamplers;
+    std::vector<VkSemaphore> mImageAvailableSemaphores;
+    std::vector<VkSemaphore> mRenderFinishedSemaphores;
+    std::vector<VkFence> mInFlightFences;
     std::vector<VkImageLayout> mLayouts;
+    uint32_t mCurrentFrame = 0;
 };

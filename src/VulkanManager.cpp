@@ -13,20 +13,16 @@ debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
     void* pUserData) {
     switch (messageSeverity) {
     case VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT:
-        LOG_DEBUG(
-            std::format("[Validation layer]: {}", pCallbackData->pMessage));
+        LOG_DEBUG("[Validation layer]: {}", pCallbackData->pMessage);
         break;
     case VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT:
-        LOG_INFO(
-            std::format("[Validation layer]: {}", pCallbackData->pMessage));
+        LOG_INFO("[Validation layer]: {}", pCallbackData->pMessage);
         break;
     case VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT:
-        LOG_WARNING(
-            std::format("[Validation layer]: {}", pCallbackData->pMessage));
+        LOG_WARNING("[Validation layer]: {}", pCallbackData->pMessage);
         break;
     case VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT:
-        LOG_ERROR(
-            std::format("[Validation layer]: {}", pCallbackData->pMessage));
+        LOG_ERROR("[Validation layer]: {}", pCallbackData->pMessage);
         break;
     default:
         break;
@@ -75,8 +71,7 @@ bool instanceLayersSupported(const std::vector<const char*>& layers) {
             }
         }
         if (!layerFound) {
-            LOG_WARNING(std::format("Required instance layer \"{}\" not found",
-                layerName));
+            LOG_WARNING("Required instance layer \"{}\" not found", layerName);
             return false;
         }
     }
@@ -111,7 +106,7 @@ bool deviceExtensionsSupported(VkPhysicalDevice device,
 VkInstance createInstance(const std::vector<const char*>& requiredLayers,
     const std::vector<const char*>& requiredExtensions) {
     if (!instanceLayersSupported(requiredLayers)) {
-        LOG_ERROR(std::format("Required instance layers are not supported"));
+        LOG_ERROR("Required instance layers are not supported");
         return nullptr;
     }
 
@@ -174,8 +169,8 @@ VkPhysicalDevice choosePhysicalDevice(VkInstance instance) {
             VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU ||
             deviceProperties.deviceType ==
             VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU) {
-            LOG_INFO(std::format("Selected discrete/integrated GPU: {}",
-                deviceProperties.deviceName));
+            LOG_INFO("Selected discrete/integrated GPU: {}",
+                deviceProperties.deviceName);
             return device;
         }
     }
@@ -183,8 +178,7 @@ VkPhysicalDevice choosePhysicalDevice(VkInstance instance) {
     VkPhysicalDeviceProperties deviceProperties;
     vkGetPhysicalDeviceProperties(devices[0], &deviceProperties);
 
-    LOG_INFO(
-        std::format("Selected default GPU: {}", deviceProperties.deviceName));
+    LOG_INFO("Selected default GPU: {}", deviceProperties.deviceName);
 
     return devices[0];
 }

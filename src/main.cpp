@@ -47,11 +47,11 @@ int main(int argc, char** argv) {
         computeShader->BindSurfaceAsImage(surface, 0, imageIndex);
         computePipeline->Dispatch(commandBuffer,
             (surface->Extent().width + 7) / 8,
-            (surface->Extent().height + 7) / 8, 1);
+            (surface->Extent().height + 7) / 8, 1, imageIndex);
 
-        surface->ChangeLayout(commandBuffer, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
-        uint32_t submitIndex = commandBuffer->End();
-        surface->SubmitCommandBuffer(commandBuffer, submitIndex);
+        surface->ChangeLayout(commandBuffer, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+        commandBuffer->End();
+        surface->SubmitCommandBuffer(commandBuffer, imageIndex);
     }
 
     vulkanManager->WaitIdle();

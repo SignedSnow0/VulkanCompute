@@ -205,7 +205,7 @@ Pipeline::Pipeline(const std::shared_ptr<VulkanManager>& vulkanManager,
     : mVulkanManager(vulkanManager), mShaders(shaders),
     mRenderPass(renderPass) {
     mLayout = createPipelineLayout(mVulkanManager->Device(),
-        mShaders[0]->DescriptorSetLayout());
+        mShaders[0]->DescriptorSetLayout(00));
     mPipeline = createGraphicsPipeline(mVulkanManager->Device(),
         mRenderPass->RenderPassHandle(), mLayout,
         mShaders, mRenderPass->Extent());
@@ -230,7 +230,7 @@ ComputePipeline::ComputePipeline(
     const std::shared_ptr<Shader>& computeShader)
     : mVulkanManager(vulkanManager), mComputeShader(computeShader) {
     mLayout = createPipelineLayout(mVulkanManager->Device(),
-        mComputeShader->DescriptorSetLayout());
+        mComputeShader->DescriptorSetLayout(0));
     mPipeline = createComputePipeline(mVulkanManager->Device(), mLayout,
         mComputeShader);
 }
@@ -246,10 +246,10 @@ ComputePipeline::~ComputePipeline() {
 
 void ComputePipeline::Dispatch(
     const std::shared_ptr<CommandBuffer>& commandBuffer, uint32_t groupCountX,
-    uint32_t groupCountY, uint32_t groupCountZ) {
+    uint32_t groupCountY, uint32_t groupCountZ, uint32_t frameIndex) {
     commandBuffer->ExecuteCommand([this, groupCountX, groupCountY,
-        groupCountZ](VkCommandBuffer cmdBuffer) {
-            VkDescriptorSet descriptorSet = mComputeShader->DescriptorSet();
+        groupCountZ, frameIndex](VkCommandBuffer cmdBuffer) {
+            VkDescriptorSet descriptorSet = mComputeShader->DescriptorSet(frameIndex);
             vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
                 mLayout, 0, 1, &descriptorSet, 0, nullptr);
 

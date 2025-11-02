@@ -44,34 +44,16 @@ VkRenderPass createRenderPass(VkDevice device, VkFormat format) {
 
 std::vector<VkFramebuffer>
 createFramebuffers(VkDevice device, VkRenderPass renderPass,
-    const std::vector<VkImage>& images,
+    const std::vector<VkImage>& images, const std::vector<VkImageView>& imageViews,
     VkExtent2D extent, VkFormat format) {
     std::vector<VkFramebuffer> framebuffers(images.size());
 
     for (size_t i = 0; i < images.size(); i++) {
-        VkImageViewCreateInfo viewInfo = {};
-        viewInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        viewInfo.image = images[i];
-        viewInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        viewInfo.format = format;
-        viewInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-        viewInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-        viewInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-        viewInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-        viewInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        viewInfo.subresourceRange.baseMipLevel = 0;
-        viewInfo.subresourceRange.levelCount = 1;
-        viewInfo.subresourceRange.baseArrayLayer = 0;
-        viewInfo.subresourceRange.layerCount = 1;
-
-        VkImageView imageView;
-        VK_CHECK(vkCreateImageView(device, &viewInfo, nullptr, &imageView));
-
         VkFramebufferCreateInfo framebufferInfo = {};
         framebufferInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
         framebufferInfo.renderPass = renderPass;
         framebufferInfo.attachmentCount = 1;
-        framebufferInfo.pAttachments = &imageView;
+        framebufferInfo.pAttachments = &imageViews[i];
         framebufferInfo.width = extent.width;
         framebufferInfo.height = extent.height;
         framebufferInfo.layers = 1;
@@ -90,7 +72,7 @@ RenderPass::RenderPass(const std::shared_ptr<VulkanManager>& vulkanManager,
         createRenderPass(mVulkanManager->Device(), mSurface->Format());
     mFramebuffers =
         createFramebuffers(mVulkanManager->Device(), mRenderPass,
-            mSurface->Images(), mSurface->Extent(), surface->Format());
+            mSurface->Images(), mSurface->ImageViews(), mSurface->Extent(), surface->Format());
 }
 
 RenderPass::~RenderPass() {

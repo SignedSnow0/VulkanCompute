@@ -11,8 +11,8 @@
     {                                                                          \
         ::VkResult res = (fn);                                                 \
         if (res != VK_SUCCESS) {                                               \
-            LOG_WARNING(std::format("Vulkan call error: VkResult is {}",       \
-                                    string_VkResult(res)));                    \
+            LOG_WARNING("Vulkan call error: VkResult is {}",                   \
+                                    string_VkResult(res));                     \
         }                                                                      \
     }
 

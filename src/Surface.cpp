@@ -49,11 +49,25 @@ void changeLayout(VkCommandBuffer cmdBuffer, VkImageLayout oldLayout, VkImageLay
         sourceStage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
         destinationStage = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
     }
+    else if (oldLayout == VK_IMAGE_LAYOUT_GENERAL &&
+        newLayout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR) {
+        barrier.srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+        barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+        sourceStage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+        destinationStage = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+    }
+    else if (oldLayout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR &&
+        newLayout == VK_IMAGE_LAYOUT_GENERAL) {
+        barrier.srcAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+        barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+        sourceStage = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+        destinationStage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+    }
     else {
-        LOG_WARNING(std::format(
+        LOG_WARNING(
             "Unsupported layout transition from {} to {}",
             string_VkImageLayout(oldLayout),
-            string_VkImageLayout(newLayout)));
+            string_VkImageLayout(newLayout));
         return;
     }
 
@@ -162,23 +176,51 @@ std::vector<VkImageView> createImageViews(VkDevice device,
     return imageViews;
 }
 
-VkSemaphore createSemaphore(VkDevice device) {
-    VkSemaphoreCreateInfo semaphoreInfo = {};
+void createSyncObjects(VkDevice device, std::vector<VkSemaphore>& imageAvailable, std::vector<VkSemaphore>& renderFinished, std::vector<VkFence>& inFlight, uint32_t count) {
+    VkSemaphoreCreateInfo semaphoreInfo{};
     semaphoreInfo.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
-    VkSemaphore semaphore;
-    VK_CHECK(vkCreateSemaphore(device, &semaphoreInfo, nullptr, &semaphore));
-    return semaphore;
+    VkFenceCreateInfo fenceInfo{};
+    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fenceInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+
+    imageAvailable.resize(count);
+    renderFinished.resize(count);
+    inFlight.resize(count);
+
+    for (uint32_t i = 0; i < count; i++) {
+        VK_CHECK(vkCreateSemaphore(device, &semaphoreInfo, nullptr, &imageAvailable[i]));
+        VK_CHECK(vkCreateSemaphore(device, &semaphoreInfo, nullptr, &renderFinished[i]));
+        VK_CHECK(vkCreateFence(device, &fenceInfo, nullptr, &inFlight[i]));
+    }
 }
 
-VkFence createFence(VkDevice device, bool signaled) {
-    VkFenceCreateInfo fenceInfo = {};
-    fenceInfo.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-    fenceInfo.flags = signaled ? VK_FENCE_CREATE_SIGNALED_BIT : 0;
+std::vector<VkSampler> CreateSamplers(VkDevice device, uint32_t count) {
+    std::vector<VkSampler> samplers;
+    samplers.resize(count);
 
-    VkFence fence;
-    VK_CHECK(vkCreateFence(device, &fenceInfo, nullptr, &fence));
-    return fence;
+    VkSamplerCreateInfo samplerInfo = {};
+    samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    samplerInfo.magFilter = VK_FILTER_LINEAR;
+    samplerInfo.minFilter = VK_FILTER_LINEAR;
+    samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+    samplerInfo.anisotropyEnable = VK_FALSE;
+    samplerInfo.maxAnisotropy = 1.0f;
+    samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+    samplerInfo.unnormalizedCoordinates = VK_FALSE;
+    samplerInfo.compareEnable = VK_FALSE;
+    samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+    samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    samplerInfo.mipLodBias = 0.0f;
+    samplerInfo.minLod = 0.0f;
+    samplerInfo.maxLod = 0.0f;
+
+    for (uint32_t i = 0; i < count; i++) {
+        vkCreateSampler(device, &samplerInfo, nullptr, &samplers[i]);
+    }
+    return samplers;
 }
 
 Surface::Surface(const std::shared_ptr<VulkanManager>& vulkanManager,
@@ -193,11 +235,10 @@ Surface::Surface(const std::shared_ptr<VulkanManager>& vulkanManager,
         createSwapChain(mVulkanManager->PhysicalDevice(),
             mVulkanManager->Device(), mSurface, mFormat, mExtent);
     mSwapchainImages = getSwapChainImages(mVulkanManager->Device(), mSwapchain);
-    mSwapchainImageViews =
-        createImageViews(mVulkanManager->Device(), mSwapchainImages, mFormat);
+    mSwapchainImageViews = createImageViews(mVulkanManager->Device(), mSwapchainImages, mFormat);
+    mSamplers = CreateSamplers(mVulkanManager->Device(), mSwapchainImages.size());
 
-    mSemaphore = createSemaphore(mVulkanManager->Device());
-    mFence = createFence(mVulkanManager->Device(), true);
+    createSyncObjects(mVulkanManager->Device(), mImageAvailableSemaphores, mRenderFinishedSemaphores, mInFlightFences, mSwapchainImages.size());
 
     mLayouts = std::vector<VkImageLayout>(mSwapchainImages.size(), VK_IMAGE_LAYOUT_UNDEFINED);
 
@@ -207,21 +248,28 @@ Surface::Surface(const std::shared_ptr<VulkanManager>& vulkanManager,
             mLayouts[i] = initialLayout;
         }
         });
+
+    LOG_INFO("Swapchain created with {} images.", mSwapchainImages.size());
 }
 
 Surface::~Surface() {
-    vkDestroyFence(mVulkanManager->Device(), mFence, nullptr);
-    vkDestroySemaphore(mVulkanManager->Device(), mSemaphore, nullptr);
+    for (uint32_t i = 0; i < mImageAvailableSemaphores.size(); i++) {
+        vkDestroySampler(mVulkanManager->Device(), mSamplers[i], nullptr);
+        vkDestroyImageView(mVulkanManager->Device(), mSwapchainImageViews[i], nullptr);
+        vkDestroySemaphore(mVulkanManager->Device(), mImageAvailableSemaphores[i], nullptr);
+        vkDestroySemaphore(mVulkanManager->Device(), mRenderFinishedSemaphores[i], nullptr);
+        vkDestroyFence(mVulkanManager->Device(), mInFlightFences[i], nullptr);
+    }
     vkDestroySwapchainKHR(mVulkanManager->Device(), mSwapchain, nullptr);
     vkDestroySurfaceKHR(mVulkanManager->Instance(), mSurface, nullptr);
 }
 
 uint32_t Surface::WaitNextImage() {
-    vkWaitForFences(mVulkanManager->Device(), 1, &mFence, VK_TRUE, UINT64_MAX);
-    vkResetFences(mVulkanManager->Device(), 1, &mFence);
+    vkWaitForFences(mVulkanManager->Device(), 1, &mInFlightFences[mCurrentFrame], VK_TRUE, UINT64_MAX);
+    vkResetFences(mVulkanManager->Device(), 1, &mInFlightFences[mCurrentFrame]);
     uint32_t imageIndex;
     vkAcquireNextImageKHR(mVulkanManager->Device(), mSwapchain, UINT64_MAX,
-        mSemaphore, VK_NULL_HANDLE, &imageIndex);
+        mImageAvailableSemaphores[mCurrentFrame], VK_NULL_HANDLE, &imageIndex);
     return imageIndex;
 }
 
@@ -231,14 +279,13 @@ void Surface::SubmitCommandBuffer(
     VkSubmitInfo submitInfo = {};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 
-    VkSemaphore waitSemaphores[] = { mSemaphore };
-    VkPipelineStageFlags waitStages[] = {
-        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+    VkSemaphore waitSemaphores[] = { mImageAvailableSemaphores[mCurrentFrame] };
+    VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
     submitInfo.waitSemaphoreCount = 1;
     submitInfo.pWaitSemaphores = waitSemaphores;
     submitInfo.pWaitDstStageMask = waitStages;
 
-    VkSemaphore signalSemaphores[] = { mSemaphore };
+    VkSemaphore signalSemaphores[] = { mRenderFinishedSemaphores[mCurrentFrame] };
     submitInfo.signalSemaphoreCount = 1;
     submitInfo.pSignalSemaphores = signalSemaphores;
 
@@ -246,8 +293,7 @@ void Surface::SubmitCommandBuffer(
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &cmdBuffer;
 
-    VK_CHECK(
-        vkQueueSubmit(mVulkanManager->ComputeQueue(), 1, &submitInfo, mFence));
+    VK_CHECK(vkQueueSubmit(mVulkanManager->ComputeQueue(), 1, &submitInfo, mInFlightFences[mCurrentFrame]));
 
     VkPresentInfoKHR presentInfo = {};
     presentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -261,6 +307,8 @@ void Surface::SubmitCommandBuffer(
     presentInfo.pResults = nullptr; // Optional
 
     VK_CHECK(vkQueuePresentKHR(mVulkanManager->ComputeQueue(), &presentInfo));
+
+    mCurrentFrame = (mCurrentFrame + 1) % mSwapchainImages.size();
 }
 
 void Surface::ChangeLayout(const std::shared_ptr<CommandBuffer>& commandBuffer, VkImageLayout newLayout) {
