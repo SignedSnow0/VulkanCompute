@@ -13,6 +13,8 @@ public:
     [[nodiscard]] uint32_t Width() const;
     [[nodiscard]] uint32_t Height() const;
 
+    bool IsKeyPressed(int key) const;
+
 private:
     GLFWwindow* mWindow;
 };

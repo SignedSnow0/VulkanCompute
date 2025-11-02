@@ -7,6 +7,8 @@
 #include "Surface.h"
 #include "VulkanManager.h"
 #include "Window.h"
+#include "UBOs.h"
+#include "Buffer.h"
 
 int main(int argc, char** argv) {
     Window window(1280, 720, "Vulkan Compute");
@@ -36,14 +38,36 @@ int main(int argc, char** argv) {
     auto commandBuffer =
         std::make_shared<CommandBuffer>(vulkanManager, surface->ImageCount());
 
+    auto uniformBuffer = std::make_shared<UniformBuffer<Camera>>(vulkanManager);
+
+    Camera camera = {};
+
     while (!window.shouldClose()) {
         window.pollEvents();
+        if (window.IsKeyPressed(GLFW_KEY_ESCAPE)) {
+            break;
+        }
+        if (window.IsKeyPressed(GLFW_KEY_W)) {
+            camera.position[2] -= 0.1f;
+        }
+        if (window.IsKeyPressed(GLFW_KEY_S)) {
+            camera.position[2] += 0.1f;
+        }
+        if (window.IsKeyPressed(GLFW_KEY_A)) {
+            camera.position[0] -= 0.1f;
+        }
+        if (window.IsKeyPressed(GLFW_KEY_D)) {
+            camera.position[0] += 0.1f;
+        }
+
+        uniformBuffer->UpdateData(camera);
 
         uint32_t imageIndex = surface->WaitNextImage();
         commandBuffer->Begin(imageIndex);
 
         surface->ChangeLayout(commandBuffer, VK_IMAGE_LAYOUT_GENERAL);
 
+        computeShader->BindUniformBuffer(*uniformBuffer, 1, imageIndex);
         computeShader->BindSurfaceAsImage(surface, 0, imageIndex);
         computePipeline->Dispatch(commandBuffer,
             (surface->Extent().width + 7) / 8,

@@ -81,16 +81,26 @@ void createDescriptorSet(VkDevice device, const std::vector<uint32_t>& bytecode,
     spirv_cross::ShaderResources resources =
         glslCompiler.get_shader_resources();
 
+    LOG_DEBUG("Shader reflection: found {} uniform buffers, {} storage buffers, "
+        "{} sampled images, {} storage images.",
+        resources.uniform_buffers.size(),
+        resources.storage_buffers.size(),
+        resources.sampled_images.size(),
+        resources.storage_images.size());
+
     std::vector<VkDescriptorSetLayoutBinding> bindings;
     for (const auto& resource : resources.storage_buffers) {
         uint32_t binding =
             glslCompiler.get_decoration(resource.id, spv::DecorationBinding);
+
         VkDescriptorSetLayoutBinding layoutBinding = {};
         layoutBinding.binding = binding;
         layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
         layoutBinding.descriptorCount = 1;
         layoutBinding.stageFlags = stage;
         bindings.push_back(layoutBinding);
+        LOG_DEBUG("\tFound storage buffer resource: \'{}\' at binding {}",
+            resource.name, binding);
     }
 
     for (const auto& resource : resources.sampled_images) {
@@ -103,6 +113,9 @@ void createDescriptorSet(VkDevice device, const std::vector<uint32_t>& bytecode,
         layoutBinding.descriptorCount = 1;
         layoutBinding.stageFlags = stage;
         bindings.push_back(layoutBinding);
+
+        LOG_DEBUG("\tFound sampled image resource: \'{}\' at binding {}",
+            resource.name, binding);
     }
 
     for (const auto& resource : resources.uniform_buffers) {
@@ -114,6 +127,9 @@ void createDescriptorSet(VkDevice device, const std::vector<uint32_t>& bytecode,
         layoutBinding.descriptorCount = 1;
         layoutBinding.stageFlags = stage;
         bindings.push_back(layoutBinding);
+
+        LOG_DEBUG("\tFound uniform buffer resource: \'{}\' at binding {}",
+            resource.name, binding);
     }
 
     for (const auto& resource : resources.storage_images) {
@@ -125,6 +141,9 @@ void createDescriptorSet(VkDevice device, const std::vector<uint32_t>& bytecode,
         layoutBinding.descriptorCount = 1;
         layoutBinding.stageFlags = stage;
         bindings.push_back(layoutBinding);
+
+        LOG_DEBUG("\tFound storage image resource: \'{}\' at binding {}",
+            resource.name, binding);
     }
 
     VkDescriptorSetLayoutCreateInfo layoutInfo = {};

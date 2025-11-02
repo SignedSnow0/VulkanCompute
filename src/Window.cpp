@@ -36,3 +36,7 @@ uint32_t Window::Height() const {
     glfwGetWindowSize(mWindow, &width, &height);
     return static_cast<uint32_t>(height);
 }
+
+bool Window::IsKeyPressed(int key) const {
+    return glfwGetKey(mWindow, key) == GLFW_PRESS;
+}

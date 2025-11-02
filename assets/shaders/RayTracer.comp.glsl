@@ -1,7 +1,5 @@
 #version 460
 
-layout (rgba8, set = 0, binding = 0) uniform image2D framebuffer;
-
 struct Ray {
     vec3 origin;
     vec3 direction;
@@ -12,6 +10,13 @@ struct Sphere {
     float radius;
     vec3 color;
 };
+
+layout (rgba8, set = 0, binding = 0) uniform image2D framebuffer;
+layout (set = 0, binding = 1) uniform Camera {
+    vec3 position;
+    vec3 forward;
+    vec3 up;
+} camera;
 
 bool intersectSphere(Ray ray, Sphere sphere, out float t) {
     vec3 oc = ray.origin - sphere.center;
@@ -43,7 +48,7 @@ void main()
     uv.x *= float(imageSize.x) / float(imageSize.y);
 
     Ray ray;
-    ray.origin = vec3(0.0, 0.0, 0.0);
+    ray.origin = camera.position;
     ray.direction = normalize(vec3(uv, -1.0));
 
     Sphere sphere;
