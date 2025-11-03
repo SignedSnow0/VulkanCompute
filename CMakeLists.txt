@@ -2,17 +2,21 @@ cmake_minimum_required(VERSION 3.16)
 project(VulkanCompute)
 
 add_executable(VulkanCompute
-    src/main.cpp
-    src/VulkanManager.cpp
-    src/Window.cpp
-    src/Surface.cpp
-    src/Shader.cpp
-    src/Pipeline.cpp
-    src/RenderPass.cpp
-    src/CommandBuffer.cpp
-    src/Image.cpp
-    src/Buffer.cpp
-    src/Logger.cpp
+    src/App/main.cpp
+    src/App/RayTracerApp.cpp
+
+    src/Core/Logger.cpp
+    src/Core/VulkanComputeApp.cpp
+    src/Core/Window.cpp
+
+    src/Vulkan/Buffer.cpp
+    src/Vulkan/CommandBuffer.cpp
+    src/Vulkan/Image.cpp
+    src/Vulkan/Pipeline.cpp
+    src/Vulkan/RenderPass.cpp
+    src/Vulkan/Shader.cpp
+    src/Vulkan/Surface.cpp
+    src/Vulkan/VulkanManager.cpp
 )
 
 set_property(TARGET VulkanCompute PROPERTY CXX_STANDARD 20)
@@ -20,6 +24,6 @@ set_property(TARGET VulkanCompute PROPERTY CXX_STANDARD 20)
 target_link_directories(VulkanCompute PRIVATE "$ENV{VULKAN_SDK}/lib/")
 target_link_libraries(VulkanCompute PRIVATE vulkan-1.lib shaderc_combinedd.lib spirv-cross-cored.lib glfw)
 
-target_include_directories(VulkanCompute PRIVATE "$ENV{VULKAN_SDK}/include/" external/glfw/include, external/stb)
+target_include_directories(VulkanCompute PRIVATE "src" "$ENV{VULKAN_SDK}/include/" external/glfw/include, external/stb)
 
 add_subdirectory(external/glfw)

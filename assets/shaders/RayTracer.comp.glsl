@@ -11,11 +11,6 @@ struct Sphere {
     vec3 color;
 };
 
-struct Vertex {
-    vec2 position;
-    vec3 color;
-};
-
 layout (rgba8, set = 0, binding = 0) uniform image2D framebuffer;
 
 layout (set = 0, binding = 1) uniform Camera {
@@ -23,10 +18,6 @@ layout (set = 0, binding = 1) uniform Camera {
     vec3 forward;
     vec3 up;
 } camera;
-
-layout (std140, set = 0, binding = 2) readonly buffer VertexBuffer {
-    Vertex vertices[3];
-};
 
 bool intersectSphere(Ray ray, Sphere sphere, out float t) {
     vec3 oc = ray.origin - sphere.center;
@@ -71,22 +62,6 @@ void main()
 
     if (intersectSphere(ray, sphere, t) && t > 0.0) {
         pixelColor = sphere.color;
-    }
-
-    for (int i = 0; i < 3; i++) {
-        vec2 vertexPos = vertices[i].position;
-        vec3 vertexColor = vertices[i].color;
-
-        float edge1 = (pixelCoords.x - vertexPos.x) * (vertices[(i + 1) % 3].position.y - vertexPos.y) - 
-                      (pixelCoords.y - vertexPos.y) * (vertices[(i + 1) % 3].position.x - vertexPos.x);
-        float edge2 = (pixelCoords.x - vertices[(i + 1) % 3].position.x) * (vertices[(i + 2) % 3].position.y - vertices[(i + 1) % 3].position.y) - 
-                      (pixelCoords.y - vertices[(i + 1) % 3].position.y) * (vertices[(i + 2) % 3].position.x - vertices[(i + 1) % 3].position.x);
-        float edge3 = (pixelCoords.x - vertices[(i + 2) % 3].position.x) * (vertexPos.y - vertices[(i + 2) % 3].position.y) - 
-                      (pixelCoords.y - vertices[(i + 2) % 3].position.y) * (vertexPos.x - vertices[(i + 2) % 3].position.x);
-
-        if ((edge1 >= 0.0 && edge2 >= 0.0 && edge3 >= 0.0) || (edge1 <= 0.0 && edge2 <= 0.0 && edge3 <= 0.0)) {
-            pixelColor = vertexColor;
-        }
     }
 
     imageStore(framebuffer, pixelCoords, vec4(pixelColor, 1.0));

@@ -3,7 +3,7 @@
 #include <memory>
 #include <vulkan/vulkan.h>
 
-#include "VulkanManager.h"
+#include "Vulkan/VulkanManager.h"
 
 void createBuffer(const std::shared_ptr<VulkanManager>& vulkanManager,
     VkDeviceSize size, VkBufferUsageFlags usage,

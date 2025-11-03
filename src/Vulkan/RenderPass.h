@@ -2,9 +2,9 @@
 
 #include <vulkan/vulkan.h>
 
-#include "CommandBuffer.h"
-#include "Surface.h"
-#include "VulkanManager.h"
+#include "Vulkan/CommandBuffer.h"
+#include "Vulkan/Surface.h"
+#include "Vulkan/VulkanManager.h"
 
 class RenderPass {
 public:
