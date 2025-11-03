@@ -1,7 +1,7 @@
 #pragma once
 
 struct Camera {
-    float position[3];
-    float forward[3];
+    alignas(16) float position[3];
+    alignas(16) float forward[3];
     float up[3];
 };

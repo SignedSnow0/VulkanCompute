@@ -10,6 +10,13 @@
 #include "UBOs.h"
 #include "Buffer.h"
 
+float vertices[] = {
+    // positions        // colors
+     0.0f, -0.5f,      1.0f, 0.0f, 0.0f,
+     0.5f,  0.5f,      0.0f, 1.0f, 0.0f,
+    -0.5f,  0.5f,      0.0f, 0.0f, 1.0f
+};
+
 int main(int argc, char** argv) {
     Window window(1280, 720, "Vulkan Compute");
 
@@ -40,6 +47,10 @@ int main(int argc, char** argv) {
 
     auto uniformBuffer = std::make_shared<UniformBuffer<Camera>>(vulkanManager);
 
+    auto vertexBuffer = std::make_shared<Buffer<float>>(
+        vulkanManager, vertices, sizeof(vertices),
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+
     Camera camera = {};
 
     while (!window.shouldClose()) {
@@ -67,6 +78,7 @@ int main(int argc, char** argv) {
 
         surface->ChangeLayout(commandBuffer, VK_IMAGE_LAYOUT_GENERAL);
 
+        computeShader->BindBuffer(*vertexBuffer, 2, imageIndex);
         computeShader->BindUniformBuffer(*uniformBuffer, 1, imageIndex);
         computeShader->BindSurfaceAsImage(surface, 0, imageIndex);
         computePipeline->Dispatch(commandBuffer,
