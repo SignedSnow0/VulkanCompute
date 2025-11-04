@@ -2,8 +2,9 @@
 
 RayTracerApp::RayTracerApp()
     : VulkanComputeApp(1280, 720, "Vulkan Ray Tracer") {
-    mShader = std::make_shared<Shader>(mVulkanManager, "assets/shaders/RayTracer.comp.glsl",
-        ShaderStage::Compute, mSurface->ImageCount());
+    mShader = std::make_shared<Shader>(
+        mVulkanManager, "assets/shaders/RayTracer.comp", ShaderStage::Compute,
+        mSurface->ImageCount());
     mPipeline = std::make_shared<ComputePipeline>(mVulkanManager, mShader);
     mCamera = std::make_shared<UniformBuffer<Camera>>(mVulkanManager);
 }
@@ -27,18 +28,28 @@ void RayTracerApp::OnUpdate(float dt) {
     if (mWindow.IsKeyPressed(GLFW_KEY_D)) {
         cameraUBO.position[0] += 1.0f * dt;
     }
+    if (mWindow.IsKeyPressed(GLFW_KEY_R)) {
+        mVulkanManager->WaitIdle();
+
+        mShader = std::make_shared<Shader>(
+            mVulkanManager, "assets/shaders/RayTracer.comp",
+            ShaderStage::Compute, mSurface->ImageCount());
+        mPipeline = std::make_shared<ComputePipeline>(mVulkanManager, mShader);
+    }
 
     mCamera->UpdateData(cameraUBO);
 }
 
-void RayTracerApp::OnRender(float dt, std::shared_ptr<CommandBuffer> commandBuffer) {
-    mShader->BindSurfaceAsImage(mSurface, 0, commandBuffer->CurrentBufferIndex());
-    mShader->BindUniformBuffer(*mCamera, 1, commandBuffer->CurrentBufferIndex());
+void RayTracerApp::OnRender(float dt,
+                            std::shared_ptr<CommandBuffer> commandBuffer) {
+    mShader->BindSurfaceAsImage(mSurface, "framebuffer",
+                                commandBuffer->CurrentBufferIndex());
+    mShader->BindUniformBuffer(*mCamera, "camera",
+                               commandBuffer->CurrentBufferIndex());
 
-    mPipeline->Dispatch(commandBuffer,
-        (mSurface->Extent().width + 7) / 8,
-        (mSurface->Extent().height + 7) / 8,
-        1, commandBuffer->CurrentBufferIndex());
+    mPipeline->Dispatch(commandBuffer, (mSurface->Extent().width + 7) / 8,
+                        (mSurface->Extent().height + 7) / 8, 1,
+                        commandBuffer->CurrentBufferIndex());
 }
 
 void RayTracerApp::OnStop() {}

@@ -2,7 +2,7 @@
 
 #include "Core/Logger.h"
 
-Window::Window(uint32_t width, uint32_t height, const char* title) {
+Window::Window(uint32_t width, uint32_t height, const char *title) {
     if (!glfwInit()) {
         mWindow = nullptr;
         return;
@@ -10,7 +10,9 @@ Window::Window(uint32_t width, uint32_t height, const char* title) {
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
-    mWindow = glfwCreateWindow(static_cast<int>(width), static_cast<int>(height), title, nullptr, nullptr);
+    mWindow =
+        glfwCreateWindow(static_cast<int>(width), static_cast<int>(height),
+                         title, nullptr, nullptr);
 
     LOG_INFO("Created window '{}' ({}x{})", title, width, height);
 }

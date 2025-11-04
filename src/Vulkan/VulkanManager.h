@@ -12,13 +12,13 @@
         ::VkResult res = (fn);                                                 \
         if (res != VK_SUCCESS) {                                               \
             LOG_WARNING("Vulkan call error: VkResult is {}",                   \
-                                    string_VkResult(res));                     \
+                        string_VkResult(res));                                 \
         }                                                                      \
     }
 
 class VulkanManager {
 public:
-    VulkanManager(Window& window);
+    VulkanManager(Window &window);
     ~VulkanManager();
 
     [[nodiscard]] inline VkInstance Instance() const { return mInstance; }

@@ -11,12 +11,14 @@
 
 class VulkanComputeApp {
 public:
-    VulkanComputeApp(uint32_t windowWidth, uint32_t windowHeight, const char* windowTitle);
+    VulkanComputeApp(uint32_t windowWidth, uint32_t windowHeight,
+                     const char *windowTitle);
     virtual ~VulkanComputeApp();
 
     virtual void OnStart() = 0;
     virtual void OnUpdate(float dt) = 0;
-    virtual void OnRender(float dt, std::shared_ptr<CommandBuffer> commandBuffer) = 0;
+    virtual void OnRender(float dt,
+                          std::shared_ptr<CommandBuffer> commandBuffer) = 0;
     virtual void OnStop() = 0;
 
 protected:
@@ -33,5 +35,5 @@ private:
     std::shared_ptr<ComputePipeline> mComputePipeline;
     std::shared_ptr<CommandBuffer> mCommandBuffer;
 
-    friend int main(int argc, char** argv);
+    friend int main(int argc, char **argv);
 };

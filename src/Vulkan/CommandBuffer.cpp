@@ -1,7 +1,7 @@
 #include "CommandBuffer.h"
 
 static VkCommandPool createCommandPool(VkDevice device,
-    uint32_t queueFamilyIndex) {
+                                       uint32_t queueFamilyIndex) {
     VkCommandPoolCreateInfo poolInfo = {};
     poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
@@ -13,8 +13,8 @@ static VkCommandPool createCommandPool(VkDevice device,
 }
 
 std::vector<VkCommandBuffer> allocateCommandBuffers(VkDevice device,
-    VkCommandPool commandPool,
-    uint32_t count) {
+                                                    VkCommandPool commandPool,
+                                                    uint32_t count) {
     std::vector<VkCommandBuffer> commandBuffers(count);
 
     VkCommandBufferAllocateInfo allocInfo = {};
@@ -29,10 +29,10 @@ std::vector<VkCommandBuffer> allocateCommandBuffers(VkDevice device,
 }
 
 CommandBuffer::CommandBuffer(
-    const std::shared_ptr<VulkanManager>& vulkanManager, uint32_t count)
+    const std::shared_ptr<VulkanManager> &vulkanManager, uint32_t count)
     : mVulkanManager(vulkanManager) {
     mPool = createCommandPool(mVulkanManager->Device(),
-        mVulkanManager->ComputeQueueFamilyIndex());
+                              mVulkanManager->ComputeQueueFamilyIndex());
     mCommandBuffers =
         allocateCommandBuffers(mVulkanManager->Device(), mPool, count);
     mCurrentBufferIndex = std::nullopt;

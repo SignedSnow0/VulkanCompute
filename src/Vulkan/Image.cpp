@@ -10,13 +10,13 @@ VkImage createImage(VkDevice device, VkExtent2D extent) {
     createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     createInfo.imageType = VK_IMAGE_TYPE_2D;
     createInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
-    createInfo.extent = { extent.width, extent.height, 1 };
+    createInfo.extent = {extent.width, extent.height, 1};
     createInfo.mipLevels = 1;
     createInfo.arrayLayers = 1;
     createInfo.samples = VK_SAMPLE_COUNT_1_BIT;
     createInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
     createInfo.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
-        VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
+                       VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
 
     VkImage image;
     VK_CHECK(vkCreateImage(device, &createInfo, nullptr, &image));
@@ -64,8 +64,8 @@ VkSampler createImageSampler(VkDevice device) {
     return imageSampler;
 }
 
-Image::Image(const std::shared_ptr<VulkanManager>& vulkanManager,
-    VkExtent2D extent)
+Image::Image(const std::shared_ptr<VulkanManager> &vulkanManager,
+             VkExtent2D extent)
     : mVulkanManager(vulkanManager), mExtent(extent) {
     mLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
     mImage = createImage(vulkanManager->Device(), mExtent);
@@ -103,38 +103,34 @@ void Image::ChangeLayout(VkImageLayout newLayout) {
 
             sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
             destinationStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-        }
-        else if (mLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL &&
-            newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
+        } else if (mLayout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL &&
+                   newLayout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) {
             barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
             barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
 
             sourceStage = VK_PIPELINE_STAGE_TRANSFER_BIT;
             destinationStage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-        }
-        else if (mLayout == VK_IMAGE_LAYOUT_UNDEFINED &&
-            newLayout == VK_IMAGE_LAYOUT_GENERAL) {
+        } else if (mLayout == VK_IMAGE_LAYOUT_UNDEFINED &&
+                   newLayout == VK_IMAGE_LAYOUT_GENERAL) {
             barrier.srcAccessMask = 0;
             barrier.dstAccessMask =
                 VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT;
 
             sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
             destinationStage = VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
-        }
-        else if (mLayout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR &&
-            newLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL) {
+        } else if (mLayout == VK_IMAGE_LAYOUT_PRESENT_SRC_KHR &&
+                   newLayout == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL) {
             barrier.srcAccessMask = 0;
             barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
             sourceStage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
             destinationStage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        }
-        else {
+        } else {
             return;
         }
 
         vkCmdPipelineBarrier(commandBuffer, sourceStage, destinationStage, 0, 0,
-            nullptr, 0, nullptr, 1, &barrier);
+                             nullptr, 0, nullptr, 1, &barrier);
 
         mLayout = newLayout;
-        });
+    });
 }

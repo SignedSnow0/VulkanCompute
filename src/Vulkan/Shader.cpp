@@ -37,7 +37,6 @@ std::vector<uint32_t> compileShader(const std::string& filename,
     shaderc::Compiler compiler;
     shaderc::CompileOptions options;
 
-    options.SetOptimizationLevel(shaderc_optimization_level_performance);
 
     std::ifstream file(filename);
     if (!file.is_open()) {
@@ -76,7 +75,7 @@ VkShaderModule createShaderModule(VkDevice device,
 void createDescriptorSet(VkDevice device, const std::vector<uint32_t>& bytecode,
     VkShaderStageFlagBits stage, uint32_t setCount,
     std::vector<VkDescriptorSetLayout>& outLayouts,
-    VkDescriptorPool& outPool, std::vector<VkDescriptorSet>& outSets) {
+    VkDescriptorPool& outPool, std::vector<VkDescriptorSet>& outSets, std::map<std::string, uint32_t>& outBindingMap) {
     spirv_cross::Compiler glslCompiler(bytecode);
     spirv_cross::ShaderResources resources =
         glslCompiler.get_shader_resources();
@@ -92,6 +91,7 @@ void createDescriptorSet(VkDevice device, const std::vector<uint32_t>& bytecode,
     for (const auto& resource : resources.storage_buffers) {
         uint32_t binding =
             glslCompiler.get_decoration(resource.id, spv::DecorationBinding);
+        auto resourceName = glslCompiler.get_name(resource.id);
 
         VkDescriptorSetLayoutBinding layoutBinding = {};
         layoutBinding.binding = binding;
@@ -99,13 +99,18 @@ void createDescriptorSet(VkDevice device, const std::vector<uint32_t>& bytecode,
         layoutBinding.descriptorCount = 1;
         layoutBinding.stageFlags = stage;
         bindings.push_back(layoutBinding);
+
+        outBindingMap[resourceName] = binding;
+
         LOG_DEBUG("\tFound storage buffer resource: \'{}\' at binding {}",
-            resource.name, binding);
+            resourceName, binding);
     }
 
     for (const auto& resource : resources.sampled_images) {
         uint32_t binding =
             glslCompiler.get_decoration(resource.id, spv::DecorationBinding);
+        auto resourceName = glslCompiler.get_name(resource.id);
+
         VkDescriptorSetLayoutBinding layoutBinding = {};
         layoutBinding.binding = binding;
         layoutBinding.descriptorType =
@@ -114,13 +119,17 @@ void createDescriptorSet(VkDevice device, const std::vector<uint32_t>& bytecode,
         layoutBinding.stageFlags = stage;
         bindings.push_back(layoutBinding);
 
+        outBindingMap[resourceName] = binding;
+
         LOG_DEBUG("\tFound sampled image resource: \'{}\' at binding {}",
-            resource.name, binding);
+            resourceName, binding);
     }
 
     for (const auto& resource : resources.uniform_buffers) {
         uint32_t binding =
             glslCompiler.get_decoration(resource.id, spv::DecorationBinding);
+        auto resourceName = glslCompiler.get_name(resource.id);
+
         VkDescriptorSetLayoutBinding layoutBinding = {};
         layoutBinding.binding = binding;
         layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -128,13 +137,17 @@ void createDescriptorSet(VkDevice device, const std::vector<uint32_t>& bytecode,
         layoutBinding.stageFlags = stage;
         bindings.push_back(layoutBinding);
 
+        outBindingMap[resourceName] = binding;
+
         LOG_DEBUG("\tFound uniform buffer resource: \'{}\' at binding {}",
-            resource.name, binding);
+            resourceName, binding);
     }
 
     for (const auto& resource : resources.storage_images) {
         uint32_t binding =
             glslCompiler.get_decoration(resource.id, spv::DecorationBinding);
+        auto resourceName = glslCompiler.get_name(resource.id);
+
         VkDescriptorSetLayoutBinding layoutBinding = {};
         layoutBinding.binding = binding;
         layoutBinding.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
@@ -142,8 +155,10 @@ void createDescriptorSet(VkDevice device, const std::vector<uint32_t>& bytecode,
         layoutBinding.stageFlags = stage;
         bindings.push_back(layoutBinding);
 
+        outBindingMap[resourceName] = binding;
+
         LOG_DEBUG("\tFound storage image resource: \'{}\' at binding {}",
-            resource.name, binding);
+            resourceName, binding);
     }
 
     VkDescriptorSetLayoutCreateInfo layoutInfo = {};
@@ -190,7 +205,7 @@ Shader::Shader(const std::shared_ptr<VulkanManager>& vulkanManager,
     mShader = createShaderModule(mVulkanManager->Device(), spirv);
 
     createDescriptorSet(mVulkanManager->Device(), spirv, mStage, setCount,
-        mDescriptorSetLayouts, mDescriptorPool, mDescriptorSets);
+        mDescriptorSetLayouts, mDescriptorPool, mDescriptorSets, mBindingMap);
 
     LOG_INFO("Created shader: {}", filename);
 }

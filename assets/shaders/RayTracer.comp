@@ -11,9 +11,9 @@ struct Sphere {
     vec3 color;
 };
 
-layout (rgba8, set = 0, binding = 0) uniform image2D framebuffer;
+layout(rgba8, set = 0, binding = 0) uniform image2D framebuffer;
 
-layout (set = 0, binding = 1) uniform Camera {
+layout(set = 0, binding = 1) uniform Camera {
     vec3 position;
     vec3 forward;
     vec3 up;
@@ -34,7 +34,7 @@ bool intersectSphere(Ray ray, Sphere sphere, out float t) {
     }
 }
 
-layout (local_size_x = 8, local_size_y = 8) in;
+layout(local_size_x = 8, local_size_y = 8) in;
 void main()
 {
     ivec2 pixelCoords = ivec2(gl_GlobalInvocationID.xy);

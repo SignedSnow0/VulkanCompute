@@ -2,16 +2,18 @@
 
 #include <chrono>
 
-VulkanComputeApp::VulkanComputeApp(uint32_t windowWidth, uint32_t windowHeight, const char* windowTitle)
-    : mWindow{ windowWidth, windowHeight, windowTitle } {
+VulkanComputeApp::VulkanComputeApp(uint32_t windowWidth, uint32_t windowHeight,
+                                   const char *windowTitle)
+    : mWindow{windowWidth, windowHeight, windowTitle} {
     mVulkanManager = std::make_shared<VulkanManager>(mWindow);
-    mSurface = std::make_shared<Surface>(mVulkanManager, mWindow, VK_IMAGE_LAYOUT_GENERAL);
+    mSurface = std::make_shared<Surface>(mVulkanManager, mWindow,
+                                         VK_IMAGE_LAYOUT_GENERAL);
     mRenderPass = std::make_shared<RenderPass>(mVulkanManager, mSurface);
-    mCommandBuffer = std::make_shared<CommandBuffer>(mVulkanManager, mSurface->ImageCount());
+    mCommandBuffer =
+        std::make_shared<CommandBuffer>(mVulkanManager, mSurface->ImageCount());
 }
 
-VulkanComputeApp::~VulkanComputeApp() {
-}
+VulkanComputeApp::~VulkanComputeApp() {}
 
 void VulkanComputeApp::MainLoop() {
     OnStart();
@@ -20,7 +22,9 @@ void VulkanComputeApp::MainLoop() {
 
     while (!mWindow.shouldClose()) {
         auto currentTime = std::chrono::high_resolution_clock::now();
-        float dt = std::chrono::duration<float, std::chrono::seconds::period>(currentTime - lastTime).count();
+        float dt = std::chrono::duration<float, std::chrono::seconds::period>(
+                       currentTime - lastTime)
+                       .count();
         lastTime = currentTime;
 
         mWindow.pollEvents();

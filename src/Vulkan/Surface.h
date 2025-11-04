@@ -5,13 +5,14 @@
 #include <vulkan/vulkan.h>
 
 #include "CommandBuffer.h"
-#include "VulkanManager.h"
 #include "Core/Window.h"
+#include "VulkanManager.h"
+
 
 class Surface {
 public:
-    Surface(const std::shared_ptr<VulkanManager>& vulkanManager,
-        const Window& window, VkImageLayout initialLayout);
+    Surface(const std::shared_ptr<VulkanManager> &vulkanManager,
+            const Window &window, VkImageLayout initialLayout);
     ~Surface();
 
     [[nodiscard]] inline VkFormat Format() const { return mFormat; }
@@ -33,9 +34,11 @@ public:
     }
 
     uint32_t WaitNextImage();
-    void SubmitCommandBuffer(const std::shared_ptr<CommandBuffer>& commandBuffer,
-        uint32_t commandBufferIndex);
-    void ChangeLayout(const std::shared_ptr<CommandBuffer>& commandBuffer, VkImageLayout newLayout);
+    void
+    SubmitCommandBuffer(const std::shared_ptr<CommandBuffer> &commandBuffer,
+                        uint32_t commandBufferIndex);
+    void ChangeLayout(const std::shared_ptr<CommandBuffer> &commandBuffer,
+                      VkImageLayout newLayout);
 
 private:
     std::shared_ptr<VulkanManager> mVulkanManager;

@@ -7,7 +7,7 @@
 #include "VulkanManager.h"
 
 class Image {
-  public:
+public:
     Image(const std::shared_ptr<VulkanManager> &vulkanManager,
           VkExtent2D extent);
     ~Image();
@@ -17,7 +17,7 @@ class Image {
 
     void ChangeLayout(VkImageLayout newLayout);
 
-  private:
+private:
     std::shared_ptr<VulkanManager> mVulkanManager;
 
     VkImage mImage;

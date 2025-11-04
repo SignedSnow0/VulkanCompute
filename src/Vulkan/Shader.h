@@ -1,5 +1,6 @@
 #pragma once
 
+#include <map>
 #include <memory>
 #include <string>
 #include <vulkan/vulkan.h>
@@ -45,6 +46,16 @@ public:
         vkUpdateDescriptorSets(mVulkanManager->Device(), 1, &descriptorWrite, 0,
             nullptr);
     }
+    template <typename T>
+    void BindBuffer(const Buffer<T>& buffer, const std::string& name, uint32_t frameIndex) {
+        auto it = mBindingMap.find(name);
+        if (it == mBindingMap.end()) {
+            LOG_WARNING("Failed to bind buffer: no binding found for name '{}'", name);
+            return;
+        }
+
+        BindBuffer(buffer, it->second, frameIndex);
+    }
 
     template <typename T>
     void BindUniformBuffer(const UniformBuffer<T>& uniformBuffer,
@@ -66,9 +77,41 @@ public:
         vkUpdateDescriptorSets(mVulkanManager->Device(), 1, &descriptorWrite, 0,
             nullptr);
     }
+    template <typename T>
+    void BindUniformBuffer(const UniformBuffer<T>& uniformBuffer,
+        const std::string& name, uint32_t frameIndex) {
+        auto it = mBindingMap.find(name);
+        if (it == mBindingMap.end()) {
+            LOG_WARNING("Failed to bind uniform buffer: no binding found for name '{}'", name);
+            return;
+        }
+
+        BindUniformBuffer(uniformBuffer, it->second, frameIndex);
+    }
+
     void BindImage(const Image& image, uint32_t binding, uint32_t frameIndex);
+    void BindImage(const Image& image, const std::string& name, uint32_t frameIndex) {
+        auto it = mBindingMap.find(name);
+        if (it == mBindingMap.end()) {
+            LOG_WARNING("Failed to bind image: no binding found for name '{}'", name);
+            return;
+        }
+
+        BindImage(image, it->second, frameIndex);
+    }
+
     void BindSurfaceAsImage(const std::shared_ptr<Surface>& surface,
         uint32_t binding, uint32_t index);
+    void BindSurfaceAsImage(const std::shared_ptr<Surface>& surface,
+        const std::string& name, uint32_t index) {
+        auto it = mBindingMap.find(name);
+        if (it == mBindingMap.end()) {
+            LOG_WARNING("Failed to bind surface image: no binding found for name '{}'", name);
+            return;
+        }
+
+        BindSurfaceAsImage(surface, it->second, index);
+    }
 
 private:
     std::shared_ptr<VulkanManager> mVulkanManager;
@@ -78,4 +121,5 @@ private:
     std::vector<VkDescriptorSetLayout> mDescriptorSetLayouts;
     VkDescriptorPool mDescriptorPool;
     std::vector<VkDescriptorSet> mDescriptorSets;
+    std::map<std::string, uint32_t> mBindingMap;
 };
