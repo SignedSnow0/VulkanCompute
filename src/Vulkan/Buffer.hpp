@@ -6,8 +6,19 @@
 #include "Vulkan/Utils.h"
 #include "Vulkan/VulkanManager.h"
 
+/**
+ * @brief Template class for a generic Vulkan buffer.
+ */
 template <typename T> class Buffer {
 public:
+    /**
+     * @brief Constructs an empty Vulkan buffer of a specified size and usage.
+     *
+     * @param vulkanManager Shared pointer to the VulkanManager instance.
+     * @param size Size of the buffer in bytes.
+     * @param usage Usage flags for the buffer.
+     * @param properties Memory property flags for the buffer.
+     */
     Buffer(const std::shared_ptr<VulkanManager> &vulkanManager,
            VkDeviceSize size, VkBufferUsageFlags usage,
            VkMemoryPropertyFlags properties)
@@ -15,6 +26,17 @@ public:
         createBuffer(mVulkanManager, size, usage, properties, mBuffer, mMemory);
     }
 
+    /**
+     * @brief Constructs a Vulkan buffer and initializes it with provided data.
+     *
+     * This constructor assumes the data should not be updated after
+     * construction.
+     *
+     * @param vulkanManager Shared pointer to the VulkanManager instance.
+     * @param data Pointer to the data to initialize the buffer with.
+     * @param size Size of the buffer in bytes.
+     * @param usage Usage flags for the buffer.
+     */
     Buffer(const std::shared_ptr<VulkanManager> &vulkanManager, const T *data,
            VkDeviceSize size, VkBufferUsageFlags usage)
         : mVulkanManager(vulkanManager), mSize(size) {
@@ -48,6 +70,16 @@ public:
         vkFreeMemory(mVulkanManager->Device(), mMemory, nullptr);
     }
 
+    /**
+     * @brief Updates the buffer data at a specified offset.
+     *
+     * Note: The buffer must be created with the generic constructor that does
+     * not initialize the data.
+     *
+     * @param data Pointer to the data to copy into the buffer.
+     * @param size Size of the data to copy in bytes.
+     * @param offset Offset in the buffer where the data should be copied.
+     */
     void UpdateData(const T *data, VkDeviceSize size, VkDeviceSize offset = 0) {
         void *mappedData;
         vkMapMemory(mVulkanManager->Device(), mMemory, offset, size, 0,
@@ -66,8 +98,21 @@ private:
     std::shared_ptr<VulkanManager> mVulkanManager;
 };
 
+/**
+ * @brief Template class for a Vulkan uniform buffer.
+ *
+ * This class manages a Vulkan buffer specifically intended for use as a
+ * uniform buffer (specified in glsl using the keyword "uniform").
+ */
 template <typename T> class UniformBuffer {
 public:
+    /**
+     * @brief Constructs a Vulkan uniform buffer.
+     *
+     * The buffer is intended to hold only a single instance of the type T.
+     *
+     * @param vulkanManager Shared pointer to the VulkanManager instance.
+     */
     UniformBuffer(const std::shared_ptr<VulkanManager> &vulkanManager)
         : mVulkanManager(vulkanManager), mSize(sizeof(T)) {
         createBuffer(mVulkanManager, mSize, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
@@ -81,6 +126,11 @@ public:
         vkFreeMemory(mVulkanManager->Device(), mMemory, nullptr);
     }
 
+    /**
+     * @brief Updates the uniform buffer with new data to be sent to the GPU.
+     *
+     * @param data Reference to the data to copy into the buffer.
+     */
     void UpdateData(const T &data) {
         void *mappedData;
         vkMapMemory(mVulkanManager->Device(), mMemory, 0, mSize, 0,

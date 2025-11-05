@@ -22,11 +22,11 @@ Window::~Window() {
     glfwTerminate();
 }
 
-bool Window::shouldClose() const {
+bool Window::ShouldClose() const {
     return mWindow ? glfwWindowShouldClose(mWindow) : true;
 }
 
-void Window::pollEvents() const { glfwPollEvents(); }
+void Window::PollEvents() const { glfwPollEvents(); }
 
 uint32_t Window::Width() const {
     int width, height;

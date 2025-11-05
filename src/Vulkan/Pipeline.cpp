@@ -247,10 +247,11 @@ ComputePipeline::~ComputePipeline() {
 void ComputePipeline::Dispatch(
     const std::shared_ptr<CommandBuffer> &commandBuffer, uint32_t groupCountX,
     uint32_t groupCountY, uint32_t groupCountZ) {
+    uint32_t imageIndex = commandBuffer->CurrentBufferIndex();
     commandBuffer->ExecuteCommand([this, groupCountX, groupCountY, groupCountZ,
-                                   commandBuffer](VkCommandBuffer cmdBuffer) {
+                                   imageIndex](VkCommandBuffer cmdBuffer) {
         VkDescriptorSet descriptorSet =
-            mComputeShader->DescriptorSet(commandBuffer->CurrentBufferIndex());
+            mComputeShader->DescriptorSet(imageIndex);
         vkCmdBindDescriptorSets(cmdBuffer, VK_PIPELINE_BIND_POINT_COMPUTE,
                                 mLayout, 0, 1, &descriptorSet, 0, nullptr);
 

@@ -19,7 +19,8 @@ public:
         return mSurface->Extent();
     }
 
-    void Begin(const std::shared_ptr<CommandBuffer> &commandBuffer);
+    void Begin(const std::shared_ptr<CommandBuffer> &commandBuffer,
+               bool clear = true);
     void End(const std::shared_ptr<CommandBuffer> &commandBuffer);
 
 private:

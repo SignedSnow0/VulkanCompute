@@ -86,7 +86,8 @@ RenderPass::~RenderPass() {
     }
 }
 
-void RenderPass::Begin(const std::shared_ptr<CommandBuffer> &commandBuffer) {
+void RenderPass::Begin(const std::shared_ptr<CommandBuffer> &commandBuffer,
+                       bool clear) {
     if (commandBuffer->CurrentBufferIndex() >= mFramebuffers.size()) {
         return;
     }
@@ -100,9 +101,15 @@ void RenderPass::Begin(const std::shared_ptr<CommandBuffer> &commandBuffer) {
         renderPassInfo.renderArea.offset = {0, 0};
         renderPassInfo.renderArea.extent = mSurface->Extent();
 
-        VkClearValue clearColor = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
-        renderPassInfo.clearValueCount = 1;
-        renderPassInfo.pClearValues = &clearColor;
+        if (clear) {
+            VkClearValue clearColor = {{{0.0f, 0.0f, 0.0f, 1.0f}}};
+
+            renderPassInfo.clearValueCount = 1;
+            renderPassInfo.pClearValues = &clearColor;
+        } else {
+            renderPassInfo.clearValueCount = 0;
+            renderPassInfo.pClearValues = nullptr;
+        }
 
         vkCmdBeginRenderPass(cmdBuffer, &renderPassInfo,
                              VK_SUBPASS_CONTENTS_INLINE);

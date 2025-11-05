@@ -266,6 +266,18 @@ void Shader::BindImage(const Image &image, uint32_t binding,
                            nullptr);
 }
 
+void Shader::BindImage(const Image &image, const std::string &name,
+                       uint32_t frameIndex) {
+    auto it = mBindingMap.find(name);
+    if (it == mBindingMap.end()) {
+        LOG_WARNING("Failed to bind image: no binding found for name '{}'",
+                    name);
+        return;
+    }
+
+    BindImage(image, it->second, frameIndex);
+}
+
 void Shader::BindSurfaceAsImage(const std::shared_ptr<Surface> &surface,
                                 uint32_t binding, uint32_t index) {
     if (index >= surface->ImageCount()) {
@@ -288,4 +300,17 @@ void Shader::BindSurfaceAsImage(const std::shared_ptr<Surface> &surface,
 
     vkUpdateDescriptorSets(mVulkanManager->Device(), 1, &descriptorWrite, 0,
                            nullptr);
+}
+
+void Shader::BindSurfaceAsImage(const std::shared_ptr<Surface> &surface,
+                                const std::string &name, uint32_t index) {
+    auto it = mBindingMap.find(name);
+    if (it == mBindingMap.end()) {
+        LOG_WARNING(
+            "Failed to bind surface image: no binding found for name '{}'",
+            name);
+        return;
+    }
+
+    BindSurfaceAsImage(surface, it->second, index);
 }

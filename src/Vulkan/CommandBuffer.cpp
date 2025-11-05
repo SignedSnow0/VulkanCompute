@@ -94,6 +94,9 @@ void CommandBuffer::End() {
 void CommandBuffer::ExecuteCommand(
     std::function<void(VkCommandBuffer commandBuffer)> func) {
     if (!mCurrentBufferIndex) {
+        LOG_WARNING(
+            "Cannot execute command: No command buffer is currently being "
+            "recorded.");
         return;
     }
 

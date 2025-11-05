@@ -20,14 +20,14 @@ void VulkanComputeApp::MainLoop() {
 
     static auto lastTime = std::chrono::high_resolution_clock::now();
 
-    while (!mWindow.shouldClose()) {
+    while (!mWindow.ShouldClose()) {
         auto currentTime = std::chrono::high_resolution_clock::now();
         float dt = std::chrono::duration<float, std::chrono::seconds::period>(
                        currentTime - lastTime)
                        .count();
         lastTime = currentTime;
 
-        mWindow.pollEvents();
+        mWindow.PollEvents();
         OnUpdate(dt);
 
         uint32_t imageIndex = mSurface->WaitNextImage();

@@ -5,6 +5,12 @@ struct Ray {
     vec3 direction;
 };
 
+struct RayHit {
+    vec3 position;
+    vec3 normal;
+    float distance;
+};
+
 struct Sphere {
     vec3 center;
     float radius;
@@ -19,17 +25,24 @@ layout(set = 0, binding = 1) uniform Camera {
     vec3 up;
 } camera;
 
-bool intersectSphere(Ray ray, Sphere sphere, out float t) {
+layout(set = 0, binding = 2) uniform Settings {
+    int debugView;
+    float time;
+} settings;
+
+bool intersectSphere(Ray ray, Sphere sphere, out RayHit hit) {
     vec3 oc = ray.origin - sphere.center;
     float a = dot(ray.direction, ray.direction);
     float b = 2.0 * dot(oc, ray.direction);
     float c = dot(oc, oc) - sphere.radius * sphere.radius;
     float discriminant = b * b - 4.0 * a * c;
     if (discriminant < 0.0) {
-        t = -1.0;
         return false;
     } else {
-        t = (-b - sqrt(discriminant)) / (2.0 * a);
+        hit.distance = (-b - sqrt(discriminant)) / (2.0 * a);
+        hit.position = ray.origin + hit.distance * ray.direction;
+        hit.normal = normalize(hit.position - sphere.center);
+
         return true;
     }
 }
@@ -47,6 +60,7 @@ void main()
     vec2 uv = (vec2(pixelCoords) + vec2(0.5)) / vec2(imageSize);
     uv = uv * 2.0 - 1.0;
     uv.x *= float(imageSize.x) / float(imageSize.y);
+    uv.y *= -1.0;
 
     Ray ray;
     ray.origin = camera.position;
@@ -57,11 +71,21 @@ void main()
     sphere.radius = 1.0;
     sphere.color = vec3(1.0, 0.0, 0.0);
 
-    float t;
-    vec3 pixelColor = vec3(0.5, 0.7, 1.0); // Background color
+    vec3 pixelColor = vec3(0.5, 0.7, 1.0);
 
-    if (intersectSphere(ray, sphere, t) && t > 0.0) {
-        pixelColor = sphere.color;
+    vec3 lightDir = normalize(vec3(-0.5, 1.0, 0.5));
+
+    RayHit hit;
+    if (intersectSphere(ray, sphere, hit)) {
+        float diffuse = max(dot(hit.normal, lightDir), 0.0);
+        pixelColor = sphere.color * diffuse * (sin(settings.time) * 0.5 + 0.5);
+
+        if (settings.debugView == 1) {
+            pixelColor = hit.normal * 0.5 + 0.5;
+        } else if (settings.debugView == 2) {
+            float depth = hit.distance / 10.0;
+            pixelColor = vec3(depth);
+        }
     }
 
     imageStore(framebuffer, pixelCoords, vec4(pixelColor, 1.0));
