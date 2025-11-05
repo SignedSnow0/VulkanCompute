@@ -35,7 +35,7 @@ public:
 
     void Dispatch(const std::shared_ptr<CommandBuffer> &commandBuffer,
                   uint32_t groupCountX, uint32_t groupCountY,
-                  uint32_t groupCountZ, uint32_t frameIndex);
+                  uint32_t groupCountZ);
 
 private:
     std::shared_ptr<VulkanManager> mVulkanManager;

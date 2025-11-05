@@ -14,6 +14,8 @@ public:
 
     [[nodiscard]] inline VkImageView ImageView() const { return mImageView; }
     [[nodiscard]] inline VkSampler Sampler() const { return mSampler; }
+    [[nodiscard]] inline VkImageLayout Layout() const { return mLayout; }
+    [[nodiscard]] inline VkExtent2D Extent() const { return mExtent; }
 
     void ChangeLayout(VkImageLayout newLayout);
 

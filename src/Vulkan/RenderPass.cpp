@@ -86,9 +86,8 @@ RenderPass::~RenderPass() {
     }
 }
 
-void RenderPass::Begin(const std::shared_ptr<CommandBuffer> &commandBuffer,
-                       uint32_t index) {
-    if (index >= mFramebuffers.size()) {
+void RenderPass::Begin(const std::shared_ptr<CommandBuffer> &commandBuffer) {
+    if (commandBuffer->CurrentBufferIndex() >= mFramebuffers.size()) {
         return;
     }
 
@@ -96,7 +95,8 @@ void RenderPass::Begin(const std::shared_ptr<CommandBuffer> &commandBuffer,
         VkRenderPassBeginInfo renderPassInfo = {};
         renderPassInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
         renderPassInfo.renderPass = mRenderPass;
-        renderPassInfo.framebuffer = mFramebuffers[index];
+        renderPassInfo.framebuffer =
+            mFramebuffers[commandBuffer->CurrentBufferIndex()];
         renderPassInfo.renderArea.offset = {0, 0};
         renderPassInfo.renderArea.extent = mSurface->Extent();
 

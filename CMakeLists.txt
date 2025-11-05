@@ -9,13 +9,14 @@ add_executable(VulkanCompute
     src/Core/VulkanComputeApp.cpp
     src/Core/Window.cpp
 
-    src/Vulkan/Buffer.cpp
+    src/Vulkan/Buffer.hpp
     src/Vulkan/CommandBuffer.cpp
     src/Vulkan/Image.cpp
     src/Vulkan/Pipeline.cpp
     src/Vulkan/RenderPass.cpp
     src/Vulkan/Shader.cpp
     src/Vulkan/Surface.cpp
+    src/Vulkan/Utils.cpp
     src/Vulkan/VulkanManager.cpp
 )
 
