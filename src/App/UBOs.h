@@ -1,5 +1,6 @@
 #pragma once
+#include <cstdint>
 
 struct RandomSeed {
-    float seed;
+    uint32_t seed;
 };

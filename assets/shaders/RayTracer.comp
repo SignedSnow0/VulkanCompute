@@ -7,24 +7,29 @@ struct Ray {
     vec3 direction;
 };
 
+struct Material {
+    vec3 color;
+    vec3 emission_color;
+    float emission_strength;
+};
+
 struct Sphere {
     vec3 position;
-    vec3 color; 
+    Material material;
     float radius;
-    //materiale
 };
 
 struct RayHit {
     vec3 position;
     vec3 normal;
-    vec3 color; //colore del punto dell'oggetto che vado a colpire
+    Material material; //colore del punto dell'oggetto che vado a colpire
     float distance;
 };
 
 layout(rgba8, binding = 0) uniform image2D window; //finestra finale di output
 //uniform: dati/struttura condivisi tra tutti i thread dei blocchi
 layout(binding = 1) uniform RandomSeed{
-    float seed;
+    uint seed;
 }random_seed;
 
 layout(local_size_x = 8, local_size_y = 8) in; //dim del blocco (ogni blocco ha 64 thread)
@@ -63,7 +68,7 @@ Ray rayGen() {
     uv.x*= float(dim_window.x)/dim_window.y; //rettangolo proporzioni
     uv.y*= -1;
 
-    ray.direction = vec3(uv, -1); //z fissa a -1 (regola mano destra), il davanti è negativo
+    ray.direction = normalize(vec3(uv, -1)); //z fissa a -1 (regola mano destra), il davanti è negativo
     return ray;
 }
 
@@ -79,10 +84,11 @@ bool intersectSphere(Ray ray, Sphere sphere, out RayHit hit) {
     if(discriminant>=0){
         hit.distance = (-b-sqrt(discriminant))/(2*a);
         hit.position = ray.origin + ray.direction*hit.distance; //ray direction è un vettore unitario e distance è uno scalare
-        hit.normal = (hit.position - sphere.position) / sphere.radius; //ho preso la normale (vettore perpendicolare a hitpoint)
+        hit.normal = normalize(hit.position - sphere.position); //ho preso la normale (vettore perpendicolare a hitpoint)
         //normalizzato (lunghezza 1) dividendo per il raggio
-        hit.color = sphere.color;
-        return true;
+        hit.material = sphere.material;
+
+        return hit.distance>=0;
     }
 
     hit.distance = -1;
@@ -91,16 +97,25 @@ bool intersectSphere(Ray ray, Sphere sphere, out RayHit hit) {
 }
 
 bool closestHit (Ray ray, out RayHit hit) {
-    Sphere spheres[2];
+    Sphere spheres[3];
     spheres[0].position = vec3(-1,0,-2);
     spheres[0].radius = 1;
-    spheres[0].color = vec3(1,0,0);
+    spheres[0].material.color = vec3(1,0,0);
+    spheres[0].material.emission_color = vec3(0,0,0);
+    spheres[0].material.emission_strength =0.0;
 
 
     spheres[1].position = vec3(1,0,-2);
     spheres[1].radius = 1;
-    spheres[1].color = vec3(0,1,0);
+    spheres[1].material.color = vec3(0,1,0);
+    spheres[1].material.emission_color = vec3(0,0,0);
+    spheres[1].material.emission_strength =0.0;
 
+    spheres[2].position = vec3(-4,5,-10);
+    spheres[2].radius = 5;
+    spheres[2].material.color = vec3(0,0,0);
+    spheres[2].material.emission_color = vec3(1,1,1);
+    spheres[2].material.emission_strength =1.0;
 
     hit.distance = 1e20;
     bool hit_something=false;
@@ -119,13 +134,12 @@ bool closestHit (Ray ray, out RayHit hit) {
 
 void main() { //funzione che ogni thread esegue
     ivec2 dim_window = imageSize(window);
-    RayHit hit;
 
     vec3 result = vec3(0,0,0);
     vec3 ray_color = vec3(1,1,1);
 
     vec3 light_direction = vec3(0,1,0);
-    uint state = uint(gl_GlobalInvocationID.x*gl_GlobalInvocationID.y*random_seed.seed);
+    uint state = gl_GlobalInvocationID.x*gl_GlobalInvocationID.y*random_seed.seed;
 
     if (gl_GlobalInvocationID.x > dim_window.x || gl_GlobalInvocationID.y > dim_window.y) { //controllo se sono dentro alla window
         return;
@@ -139,9 +153,10 @@ void main() { //funzione che ogni thread esegue
             //creo un nuovo raggio che parte dalla sfera colpita
             ray.origin = hit.position; //per risolvere problema dovuto a errore di precisione del float
             ray.direction = randomOnHemisphere(state, hit.normal);
-            vec3 emittedLight = hit.color;
-            result += emittedLight * ray_color;
-            ray_color *= hit.color;
+           // result += ray_color;
+           vec3 emittedLight = hit.material.emission_color*hit.material.emission_strength;
+           result += emittedLight * ray_color;
+           ray_color *= (hit.material.color*dot(hit.normal, ray.direction));
 
         }else {
             result += vec3(0.5,0.7,1)*ray_color;
