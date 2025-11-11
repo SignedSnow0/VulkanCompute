@@ -1,10 +1,57 @@
 #include "Shader.h"
 
+#include <array>
 #include <fstream>
 #include <iostream>
 #include <shaderc/shaderc.hpp>
 #include <spirv_cross/spirv_glsl.hpp>
+#include <sstream>
 #include <vector>
+
+class NEShaderIncluder : public shaderc::CompileOptions::IncluderInterface {
+public:
+    NEShaderIncluder(const std::string basePath) : mBasePath(basePath) {}
+
+    shaderc_include_result *GetInclude(const char *requested_source,
+                                       shaderc_include_type type,
+                                       const char *requesting_source,
+                                       size_t include_depth) {
+
+        std::ifstream file(mBasePath + "/" + requested_source);
+        if (!file.is_open()) {
+            LOG_ERROR("Failed to open include file: {}", requested_source);
+            return nullptr;
+        }
+        std::stringstream buffer;
+        buffer << file.rdbuf();
+        const std::string contents = buffer.str();
+        file.close();
+
+        auto container = new std::array<std::string, 2>;
+        (*container)[0] = requested_source;
+        (*container)[1] = contents;
+
+        auto data = new shaderc_include_result;
+
+        data->user_data = container;
+
+        data->source_name = (*container)[0].data();
+        data->source_name_length = (*container)[0].size();
+
+        data->content = (*container)[1].data();
+        data->content_length = (*container)[1].size();
+
+        return data;
+    };
+
+    void ReleaseInclude(shaderc_include_result *data) override {
+        delete static_cast<std::array<std::string, 2> *>(data->user_data);
+        delete data;
+    };
+
+private:
+    std::string mBasePath;
+};
 
 shaderc_shader_kind getShaderKind(ShaderStage stage) {
     switch (stage) {
@@ -36,6 +83,10 @@ std::vector<uint32_t> compileShader(const std::string &filename,
                                     shaderc_shader_kind kind) {
     shaderc::Compiler compiler;
     shaderc::CompileOptions options;
+
+    std::string filePath = filename.substr(0, filename.find_last_of("/\\"));
+
+    options.SetIncluder(std::make_unique<NEShaderIncluder>(filePath));
 
     std::ifstream file(filename);
     if (!file.is_open()) {
