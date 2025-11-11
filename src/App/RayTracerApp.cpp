@@ -1,12 +1,14 @@
 #include "RayTracerApp.h"
+#include <stdlib.h>
+#include <time.h>
 
 RayTracerApp::RayTracerApp()
-    : VulkanComputeApp(1280, 720, "Vulkan Ray Tracer") {
-    mShader = std::make_shared<Shader>(
+    : VulkanComputeApp(1920, 1080, "Vulkan Ray Tracer") {
+    mShader = std::shared_ptr<Shader>(Shader::Create(
         mVulkanManager, "assets/shaders/RayTracer.comp", ShaderStage::Compute,
-        mSurface->ImageCount());
+        mSurface->ImageCount()));
     mPipeline = std::make_shared<ComputePipeline>(mVulkanManager, mShader);
-    mCamera = std::make_shared<UniformBuffer<Camera>>(mVulkanManager);
+    mSeed = std::make_shared<UniformBuffer<RandomSeed>>(mVulkanManager); //inizializzo il buffer
 }
 
 RayTracerApp::~RayTracerApp() = default;
@@ -14,42 +16,19 @@ RayTracerApp::~RayTracerApp() = default;
 void RayTracerApp::OnStart() {}
 
 void RayTracerApp::OnUpdate(float dt) {
-    static Camera cameraUBO{};
-
-    if (mWindow.IsKeyPressed(GLFW_KEY_W)) {
-        cameraUBO.position[2] -= 1.0f * dt;
-    }
-    if (mWindow.IsKeyPressed(GLFW_KEY_S)) {
-        cameraUBO.position[2] += 1.0f * dt;
-    }
-    if (mWindow.IsKeyPressed(GLFW_KEY_A)) {
-        cameraUBO.position[0] -= 1.0f * dt;
-    }
-    if (mWindow.IsKeyPressed(GLFW_KEY_D)) {
-        cameraUBO.position[0] += 1.0f * dt;
-    }
-    if (mWindow.IsKeyPressed(GLFW_KEY_R)) {
-        mVulkanManager->WaitIdle();
-
-        mShader = std::make_shared<Shader>(
-            mVulkanManager, "assets/shaders/RayTracer.comp",
-            ShaderStage::Compute, mSurface->ImageCount());
-        mPipeline = std::make_shared<ComputePipeline>(mVulkanManager, mShader);
-    }
-
-    mCamera->UpdateData(cameraUBO);
+   RandomSeed seed;
+   srand(time(NULL));
+   seed.seed=rand();
+   mSeed->UpdateData(seed); //carico i dati che mi sono creata sulla gpu attraverso il buffer
 }
 
 void RayTracerApp::OnRender(float dt,
                             std::shared_ptr<CommandBuffer> commandBuffer) {
-    mShader->BindSurfaceAsImage(mSurface, "framebuffer",
-                                commandBuffer->CurrentBufferIndex());
-    mShader->BindUniformBuffer(*mCamera, "camera",
-                               commandBuffer->CurrentBufferIndex());
-
+    mShader->BindSurfaceAsImage(mSurface, "window",
+                                commandBuffer->CurrentBufferIndex()); //memcopy host to device di window (passaggio dati)
+    mShader->BindUniformBuffer(*mSeed, "random_seed", commandBuffer->CurrentBufferIndex()); // dico al shader che il valore della variabile random_seed lo devo prendere dal buffer indicato
     mPipeline->Dispatch(commandBuffer, (mSurface->Extent().width + 7) / 8,
-                        (mSurface->Extent().height + 7) / 8, 1,
-                        commandBuffer->CurrentBufferIndex());
+                        (mSurface->Extent().height + 7) / 8, 1); //chiamo il kernel e definisco le dimensioni dei blocchi
 }
 
 void RayTracerApp::OnStop() {}

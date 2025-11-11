@@ -1,68 +1,175 @@
 #version 460
 
+const int maxbounces = 4;
+
 struct Ray {
     vec3 origin;
     vec3 direction;
 };
 
 struct Sphere {
-    vec3 center;
+    vec3 position;
+    vec3 color; 
     float radius;
-    vec3 color;
+    //materiale
 };
 
-layout(rgba8, set = 0, binding = 0) uniform image2D framebuffer;
-
-layout(set = 0, binding = 1) uniform Camera {
+struct RayHit {
     vec3 position;
-    vec3 forward;
-    vec3 up;
-} camera;
+    vec3 normal;
+    vec3 color; //colore del punto dell'oggetto che vado a colpire
+    float distance;
+};
 
-bool intersectSphere(Ray ray, Sphere sphere, out float t) {
-    vec3 oc = ray.origin - sphere.center;
-    float a = dot(ray.direction, ray.direction);
-    float b = 2.0 * dot(oc, ray.direction);
-    float c = dot(oc, oc) - sphere.radius * sphere.radius;
-    float discriminant = b * b - 4.0 * a * c;
-    if (discriminant < 0.0) {
-        t = -1.0;
-        return false;
-    } else {
-        t = (-b - sqrt(discriminant)) / (2.0 * a);
-        return true;
+layout(rgba8, binding = 0) uniform image2D window; //finestra finale di output
+//uniform: dati/struttura condivisi tra tutti i thread dei blocchi
+layout(binding = 1) uniform RandomSeed{
+    float seed;
+}random_seed;
+
+layout(local_size_x = 8, local_size_y = 8) in; //dim del blocco (ogni blocco ha 64 thread)
+
+uint hash(uint x){
+    x += ( x << 10u);
+    x ^= ( x >> 6u);
+    x += ( x << 3u);
+    x ^= ( x >> 11u);
+    x += ( x << 15u);
+    return x;  
+}
+
+uint hash( uvec2 v ) { return hash( v.x ^ hash(v.y) ); }
+uint hash( uvec3 v ) { return hash( v.x ^ hash(v.y) ^ hash(v.z) ); }
+uint hash( uvec4 v ) { return hash( v.x ^ hash(v.y) ^ hash(v.z) ^ hash(v.w) ); }
+
+float floatConstruct( uint m ) {
+    const uint ieeeMantissa = 0x007FFFFFu; // binary32 mantissa bitmask
+    const uint ieeeOne      = 0x3F800000u; // 1.0 in IEEE binary32
+
+    m &= ieeeMantissa;                     // Keep only mantissa bits (fractional part)
+    m |= ieeeOne;                          // Add fractional part to 1.0
+
+    float  f = uintBitsToFloat( m );       // Range [1:2]
+    return f - 1.0;                        // Range [0:1]
+}
+
+
+float random( float x ) { return floatConstruct(hash(floatBitsToUint(x))); }
+float random( vec2  v ) { return floatConstruct(hash(floatBitsToUint(v))); }
+float random( vec3  v ) { return floatConstruct(hash(floatBitsToUint(v))); }
+float random( vec4  v ) { return floatConstruct(hash(floatBitsToUint(v))); }
+
+vec3 randomOnSphere(inout vec3 seed) {
+    vec3 vec = vec3(random(seed++), random(seed++), random(seed++));
+    return normalize(vec);
+}
+
+vec3 randomOnHemisphere(inout vec3 seed, vec3 normal) {
+    vec3 vec = randomOnSphere(seed);
+    if(dot(normal, vec) < 0.0) {
+        return -vec;
+    }else {
+        return vec;
     }
 }
 
-layout(local_size_x = 8, local_size_y = 8) in;
-void main()
-{
-    ivec2 pixelCoords = ivec2(gl_GlobalInvocationID.xy);
-    ivec2 imageSize = imageSize(framebuffer);
+Ray rayGen() {
+    vec2 uv = gl_GlobalInvocationID.xy; //identificativo univoco (vettore a tre dim di cui prendo solo x e y perchè per noi la z è 1)
+    ivec2 dim_window = imageSize(window);
+    
+    Ray ray;
+    ray.origin=vec3(0);
 
-    if (pixelCoords.x >= imageSize.x || pixelCoords.y >= imageSize.y) {
+    uv = (uv + 0.5)/dim_window; //così l'ho mappato tra 0 e 1
+    uv = uv*2.0 - 1.0;//ora tra -1 - 1
+    uv.x*= float(dim_window.x)/dim_window.y; //rettangolo proporzioni
+    uv.y*= -1;
+
+    ray.direction = vec3(uv, -1); //z fissa a -1 (regola mano destra), il davanti è negativo
+    return ray;
+}
+
+
+bool intersectSphere(Ray ray, Sphere sphere, out RayHit hit) {
+    vec3 oc = ray.origin - sphere.position;
+    float a = dot(ray.direction, ray.direction); //prodotto interno per avere x^2+y^2+z^2
+    float b = 2*dot(oc, ray.direction);
+    //float h = dot(ray.direction, oc);
+    float c = dot(oc, oc) - sphere.radius*sphere.radius;
+    float discriminant = b*b - 4*a*c;
+
+    if(discriminant>=0){
+        hit.distance = (-b-sqrt(discriminant))/(2*a);
+        hit.position = ray.origin + ray.direction*hit.distance; //ray direction è un vettore unitario e distance è uno scalare
+        hit.normal = (hit.position - sphere.position) / sphere.radius; //ho preso la normale (vettore perpendicolare a hitpoint)
+        //normalizzato (lunghezza 1) dividendo per il raggio
+        hit.color = sphere.color;
+        return true;
+    }
+
+    hit.distance = -1;
+    hit.distance = 0;
+    return false;
+}
+
+bool closestHit (Ray ray, out RayHit hit) {
+    Sphere spheres[2];
+    spheres[0].position = vec3(-1,0,-2);
+    spheres[0].radius = 1;
+    spheres[0].color = vec3(1,0,0);
+
+
+    spheres[1].position = vec3(1,0,-2);
+    spheres[1].radius = 1;
+    spheres[1].color = vec3(0,1,0);
+
+
+    hit.distance = 1e20;
+    bool hit_something=false;
+
+    for(int i=0; i<spheres.length(); i++) {
+        RayHit current_hit;
+        if(intersectSphere(ray, spheres[i], current_hit) && current_hit.distance < hit.distance) {
+            hit=current_hit; //se prendo qualcosa ed è più vicino lo sovrascrivo 
+            hit_something = true;
+        }
+    }
+    return hit_something;
+}
+
+
+
+void main() { //funzione che ogni thread esegue
+    ivec2 dim_window = imageSize(window);
+    RayHit hit;
+
+    vec3 result = vec3(0,0,0);
+    vec3 ray_color = vec3(1,1,1);
+
+    vec3 light_direction = vec3(0,1,0);
+    vec3 random_vec = vec3(gl_GlobalInvocationID.xy, random_seed.seed); 
+
+    if (gl_GlobalInvocationID.x > dim_window.x || gl_GlobalInvocationID.y > dim_window.y) { //controllo se sono dentro alla window
         return;
     }
-
-    vec2 uv = (vec2(pixelCoords) + vec2(0.5)) / vec2(imageSize);
-    uv = uv * 2.0 - 1.0;
-    uv.x *= float(imageSize.x) / float(imageSize.y);
-
-    Ray ray;
-    ray.origin = camera.position;
-    ray.direction = normalize(vec3(uv, -1.0));
-
-    Sphere sphere;
-    sphere.center = vec3(0.0, 0.0, -3.0);
-    sphere.radius = 1.0;
-    sphere.color = vec3(1.0, 0.0, 0.0);
-
-    float t;
-    vec3 pixelColor = vec3(0.5, 0.7, 1.0); // Background color
-
-    if (intersectSphere(ray, sphere, t) && t > 0.0) {
-        pixelColor = sphere.color;
+    Ray ray = rayGen();
+    
+    //result = vec3(random(random_vec), random(random_vec), random(random_vec)) ; //debug per il random
+    for(int i=0; i<maxbounces;i++) {
+        RayHit hit;
+        if(closestHit(ray, hit)) {
+            //creo un nuovo raggio che parte dalla sfera colpita
+            ray.origin = hit.position; //per risolvere problema dovuto a errore di precisione del float
+            ray.direction = randomOnHemisphere(random_vec, hit.normal);
+            vec3 emittedLight = hit.color;
+            result += emittedLight * ray_color;
+            ray_color *= hit.color;
+        }else {
+            result += vec3(0.5,0.7,1)*ray_color;
+            break;
+        }
     }
+    
+    imageStore(window, ivec2(gl_GlobalInvocationID.xy), vec4(result, 1)); //di default è blu, se interseco la sfera vado a colorarlo di rosso
 
-    imageStore(framebuffer, pixelCoords, vec4(pixelColor, 1.0));
 }

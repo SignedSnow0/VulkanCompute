@@ -19,5 +19,5 @@ public:
 private:
     std::shared_ptr<ComputePipeline> mPipeline;
     std::shared_ptr<Shader> mShader;
-    std::shared_ptr<UniformBuffer<Camera>> mCamera;
+    std::shared_ptr<UniformBuffer<RandomSeed>> mSeed;
 };
