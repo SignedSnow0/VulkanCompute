@@ -1,23 +1,23 @@
 #ifndef UTILS_COMP
 #define UTILS_COMP
 
-const float PI = 3.14159265359;
-const float TWO_PI = 6.28318530718;
-const float INV_PI = 0.31830988618;
-const float INV_TWO_PI = 0.15915494309;
-const float EPSILON = 0.0001;
-const float MAX_FLOAT = 3.402823466e+38;
+const float PI = 3.14159265359f;
+const float TWO_PI = 6.28318530718f;
+const float INV_PI = 0.31830988618f;
+const float INV_TWO_PI = 0.15915494309f;
+const float EPSILON = 0.0001f;
+const float MAX_FLOAT = 3.402823466e+38f;
 
 float random(inout uint state) { //state è seed
-    state = state * 747796405 + 2891336453;
-    uint result = ((state >> ((state >> 28) + 4)) ^ state) * 277803737;
-    result = (result >> 22) ^ result;
-    return result / 4294967295.0;
+    state = state * 747796405u + 2891336453u;
+    uint result = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
+    result = (result >> 22u) ^ result;
+    return float(result) / 4294967295.0f;
 }
 
 float randomNormalDistribution(inout uint state) {
     float theta = TWO_PI * random(state);
-    float rho = sqrt(-2 * log(random(state)));
+    float rho = sqrt(-2.0f * log(random(state)));
     return rho * cos(theta);
 }
 

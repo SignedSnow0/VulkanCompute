@@ -47,27 +47,30 @@ Ray rayGen() {
     //   |                               |
     // (0, height) --------------- (width, height)
     vec2 uv = gl_GlobalInvocationID.xy;
+
     // (0, 0) ---------------- (1, 0)
     //   |                       |
     //   |                       |
     //   |                       |
     // (0, 1) --------------- (1, 1)
-    uv = uv / dim_window;
+    uv = uv / dim_window; //valori tra tra 0 e 1
+
     // (-1, -1) ---------------- (1, -1)
     //   |                       |
     //   |                       |
     //   |                       |
     // (-1, 1) --------------- (1, 1)
-    uv = uv * 2.0 - 1.0;//ora tra -1 - 1
-    uv.x *= float(dim_window.x) / dim_window.y;
+    uv = uv * 2.0 - 1.0;//valori tra -1 - 1
+    uv.x *= float(dim_window.x) / dim_window.y; //ratio dell'immagine, proporzioni corrette per il rettangolo
+
     // (-1, 1) ---------------- (1, 1)
     //   |                       |
     //   |                       |
     //   |                       |
     // (-1, -1) --------------- (1, -1)
-    uv.y *= -1.0;
+    uv.y *= -1.0; //inverto l'asse delle y (y deve crescere verso l'alto)
 
-    ray.direction = normalize(vec3(uv, -1));
+    ray.direction = normalize(vec3(uv, -1)); //vettore di lunghezza unitaria
     return ray;
 }
 
@@ -143,7 +146,7 @@ void main() { //funzione che ogni thread esegue
     vec3 result = vec3(0, 0, 0);
     vec3 ray_color = vec3(1, 1, 1);
 
-    uint state = gl_GlobalInvocationID.x * gl_GlobalInvocationID.y * random_seed.seed;
+    uint state = gl_GlobalInvocationID.x * gl_GlobalInvocationID.y * random_seed.seed; //elemento randomico
 
     if (gl_GlobalInvocationID.x > dim_window.x || gl_GlobalInvocationID.y > dim_window.y) { //controllo se sono dentro alla window
         return;
@@ -153,7 +156,7 @@ void main() { //funzione che ogni thread esegue
     for (int i = 0; i < MAX_BOUNCES; i++) {
         if (closestHit(ray, hit)) {
             //creo un nuovo raggio che parte dalla sfera colpita
-            ray.origin = hit.position; //per risolvere problema dovuto a errore di precisione del float
+            ray.origin = hit.position; //per risolvere problema dovuto a errore di precisione del float (eventualmente da aggiungere)
             ray.direction = randomOnHemisphere(state, hit.normal);
             
             vec3 emittedLight = hit.material.emission_color * hit.material.emission_strength;
