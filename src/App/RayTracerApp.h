@@ -1,5 +1,6 @@
 #pragma once
 
+#include <random>
 #include "App/UBOs.h"
 #include "Core/VulkanComputeApp.h"
 #include "Vulkan/Pipeline.h"
@@ -17,7 +18,11 @@ public:
     void OnStop() override;
 
 private:
+    std::uniform_int_distribution<uint32_t> mRandomDistribution;
+    std::mt19937 mRandomGenerator;
     std::shared_ptr<ComputePipeline> mPipeline;
     std::shared_ptr<Shader> mShader;
     std::shared_ptr<UniformBuffer<RandomSeed>> mSeed;
+    std::shared_ptr<UniformBuffer<SceneData>> mSceneData;
+
 };

@@ -29,12 +29,22 @@ struct RayHit {
     float distance;
 };
 
+struct Plane {
+    vec3 position;
+    vec3 normal;
+    Material material;
+};
+
 layout(rgba8, binding = 0) uniform image2D window; //finestra finale di output
 
 //uniform: dati/struttura condivisi tra tutti i thread dei blocchi
 layout(binding = 1) uniform RandomSeed {
     uint seed;
 } random_seed;
+
+layout (binding=2) uniform SceneData {
+    uint numFrames;
+} scene_data;
 
 Ray rayGen() {
     ivec2 dim_window = imageSize(window);
@@ -107,6 +117,21 @@ bool intersectSphere(Ray ray, Sphere sphere, out RayHit hit) {
     return false;
 }
 
+bool intersectPlane (Ray ray, Plane plane, out RayHit hit) {
+    float denominator = dot(plane.normal, ray.direction);
+    if(abs(denominator)>EPSILON) { //escludo i raggi paralleli al piano
+        float t = dot(plane.position - ray.origin, plane.normal)/denominator; //calcolo la distanza tra la posizione dell'origine del raggio e l'intersezione con il piano
+        if(t>=0) { //interseca
+            hit.distance = t;
+            hit.position = ray.origin + ray.direction * hit.distance;
+            hit.normal = plane.normal;
+            hit.material = plane.material;
+            return true;
+        }
+    }
+    return false;
+}
+
 bool closestHit(Ray ray, out RayHit hit) {
     Sphere spheres[3];
     spheres[0].position = vec3(-1, 0, -2);
@@ -127,6 +152,13 @@ bool closestHit(Ray ray, out RayHit hit) {
     spheres[2].material.emission_color = vec3(1, 1, 1);
     spheres[2].material.emission_strength = 1.0;
 
+    Plane plane;
+    plane.position = vec3(0,-1,0);
+    plane.normal = vec3 (0,1,0);
+    plane.material.color = vec3 (0,0,1);
+    plane.material.emission_color= vec3(0,0,0);
+    plane.material.emission_strength=0;
+
     hit.distance = MAX_FLOAT;
     bool hit_something = false;
     for (int i = 0; i < spheres.length(); i++) {
@@ -136,6 +168,11 @@ bool closestHit(Ray ray, out RayHit hit) {
             hit_something = true;
         }
     }
+    RayHit current_hit;
+        if (intersectPlane(ray, plane, current_hit) && current_hit.distance < hit.distance) {
+            hit = current_hit; //se prendo qualcosa ed è più vicino lo sovrascrivo 
+            hit_something = true;
+        }
     return hit_something;
 }
 
@@ -156,7 +193,7 @@ void main() { //funzione che ogni thread esegue
     for (int i = 0; i < MAX_BOUNCES; i++) {
         if (closestHit(ray, hit)) {
             //creo un nuovo raggio che parte dalla sfera colpita
-            ray.origin = hit.position; //per risolvere problema dovuto a errore di precisione del float (eventualmente da aggiungere)
+            ray.origin = hit.position+EPSILON*hit.normal; //per risolvere problema dovuto a errore di precisione del float (eventualmente da aggiungere)
             ray.direction = randomOnHemisphere(state, hit.normal);
             
             vec3 emittedLight = hit.material.emission_color * hit.material.emission_strength;
@@ -168,5 +205,15 @@ void main() { //funzione che ogni thread esegue
         }
     }
     
-    imageStore(window, ivec2(gl_GlobalInvocationID.xy), vec4(result, 1));
+    //imageStore(window, ivec2(gl_GlobalInvocationID.xy), vec4(result, 1));
+
+    if(scene_data.numFrames > 4) {
+        float weight = 1.0 / (scene_data.numFrames + 1);
+        vec3 previousColor = imageLoad(window, ivec2(gl_GlobalInvocationID.xy)).rgb;
+       result = mix(previousColor, result, weight); 
+
+        imageStore(window, ivec2(gl_GlobalInvocationID.xy), vec4(result, 1));
+    } else {
+        imageStore(window, ivec2(gl_GlobalInvocationID.xy), vec4(result, 1));
+    }
 }
