@@ -3,7 +3,8 @@
 
 #include "Utils.comp"
 
-const int MAX_BOUNCES = 4;
+const int MAX_BOUNCES = 10;
+const int SAMPLE_COUNT = 100; //da sistemare (non va) -> smoothness delle linee
 
 struct Ray {
     vec3 origin;
@@ -14,6 +15,7 @@ struct Material {
     vec3 color;
     vec3 emission_color;
     float emission_strength;
+    float metalness;
 };
 
 struct Sphere {
@@ -136,21 +138,24 @@ bool closestHit(Ray ray, out RayHit hit) {
     Sphere spheres[3];
     spheres[0].position = vec3(-1, 0, -2);
     spheres[0].radius = 1;
-    spheres[0].material.color = vec3(1, 0, 0);
+    spheres[0].material.color = vec3(1, 1, 1);
     spheres[0].material.emission_color = vec3(0, 0, 0);
     spheres[0].material.emission_strength = 0.0;
+    spheres[0].material.metalness = 1.0;
 
     spheres[1].position = vec3(1, 0, -2);
     spheres[1].radius = 1;
-    spheres[1].material.color = vec3(0, 1, 0);
+    spheres[1].material.color = vec3(1, 1, 1);
     spheres[1].material.emission_color = vec3(0, 0, 0);
     spheres[1].material.emission_strength = 0.0;
+    spheres[1].material.metalness = 1.0;
 
     spheres[2].position = vec3(-4, 5, -10);
     spheres[2].radius = 5;
     spheres[2].material.color = vec3(0, 0, 0);
     spheres[2].material.emission_color = vec3(1, 1, 1);
     spheres[2].material.emission_strength = 1.0;
+    spheres[2].material.metalness = 0.0;
 
     Plane plane;
     plane.position = vec3(0,-1,0);
@@ -158,6 +163,7 @@ bool closestHit(Ray ray, out RayHit hit) {
     plane.material.color = vec3 (0,0,1);
     plane.material.emission_color= vec3(0,0,0);
     plane.material.emission_strength=0;
+    plane.material.metalness=0.0;
 
     hit.distance = MAX_FLOAT;
     bool hit_something = false;
@@ -176,44 +182,55 @@ bool closestHit(Ray ray, out RayHit hit) {
     return hit_something;
 }
 
+vec3 trace(){
+    vec3 result = vec3(0, 0, 0);
+    vec3 ray_color = vec3(1, 1, 1);
+    uint state = gl_GlobalInvocationID.x * gl_GlobalInvocationID.y * random_seed.seed; //elemento randomico
+
+    for(int j=0; j<SAMPLE_COUNT; j++) {
+        Ray ray = rayGen();
+        ray.origin += randomOnSphere(state)*EPSILON;
+        RayHit hit;
+        for (int i = 0; i < MAX_BOUNCES; i++) {
+            if (closestHit(ray, hit)) {
+                //creo un nuovo raggio che parte dalla sfera colpita
+                ray.origin = hit.position+EPSILON*hit.normal; //per risolvere problema dovuto a errore di precisione del float (eventualmente da aggiungere)
+                vec3 diffuseDirection = randomOnHemisphere(state, hit.normal);
+
+                vec3 specularDirection = reflect(ray.direction, hit.normal); 
+                ray.direction = mix(diffuseDirection, specularDirection, hit.material.metalness);
+
+                vec3 emittedLight = hit.material.emission_color * hit.material.emission_strength;
+                result += emittedLight * ray_color;
+                ray_color *= (hit.material.color * dot(hit.normal, ray.direction));
+            } else {
+                result += vec3(0.5,0.7,1) * ray_color;
+                return result;
+            }
+        }
+        
+    }
+    return result;
+}
+
+
 layout(local_size_x = 8, local_size_y = 8) in; //dim del blocco (ogni blocco ha 64 thread)
 void main() { //funzione che ogni thread esegue
     ivec2 dim_window = imageSize(window);
-
-    vec3 result = vec3(0, 0, 0);
-    vec3 ray_color = vec3(1, 1, 1);
-
-    uint state = gl_GlobalInvocationID.x * gl_GlobalInvocationID.y * random_seed.seed; //elemento randomico
-
+   
     if (gl_GlobalInvocationID.x > dim_window.x || gl_GlobalInvocationID.y > dim_window.y) { //controllo se sono dentro alla window
         return;
     }
-    Ray ray = rayGen();
-    RayHit hit;
-    for (int i = 0; i < MAX_BOUNCES; i++) {
-        if (closestHit(ray, hit)) {
-            //creo un nuovo raggio che parte dalla sfera colpita
-            ray.origin = hit.position+EPSILON*hit.normal; //per risolvere problema dovuto a errore di precisione del float (eventualmente da aggiungere)
-            ray.direction = randomOnHemisphere(state, hit.normal);
-            
-            vec3 emittedLight = hit.material.emission_color * hit.material.emission_strength;
-            result += emittedLight * ray_color;
-            ray_color *= (hit.material.color * dot(hit.normal, ray.direction));
-        } else {
-            result += vec3(0.5,0.7,1) * ray_color;
-            break;
-        }
-    }
     
-    //imageStore(window, ivec2(gl_GlobalInvocationID.xy), vec4(result, 1));
+    vec3 result = trace();
 
     if(scene_data.numFrames > 4) {
-        float weight = 1.0 / (scene_data.numFrames + 1);
-        vec3 previousColor = imageLoad(window, ivec2(gl_GlobalInvocationID.xy)).rgb;
-       result = mix(previousColor, result, weight); 
+            float weight = 1.0 / (scene_data.numFrames + 1);
+            vec3 previousColor = imageLoad(window, ivec2(gl_GlobalInvocationID.xy)).rgb;
+        result = mix(previousColor, result, weight); 
 
-        imageStore(window, ivec2(gl_GlobalInvocationID.xy), vec4(result, 1));
-    } else {
-        imageStore(window, ivec2(gl_GlobalInvocationID.xy), vec4(result, 1));
-    }
+            imageStore(window, ivec2(gl_GlobalInvocationID.xy), vec4(result, 1));
+        } else {
+            imageStore(window, ivec2(gl_GlobalInvocationID.xy), vec4(result, 1));
+        }
 }
