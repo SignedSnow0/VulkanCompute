@@ -32,4 +32,5 @@ vec3 randomOnHemisphere(inout uint state, vec3 normal) {
     return dir * sign(dot(normal, dir));
 }
 
+
 #endif
