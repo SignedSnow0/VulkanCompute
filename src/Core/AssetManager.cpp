@@ -76,9 +76,8 @@ std::shared_ptr<Scene> AssetManager::LoadScene(const std::string &filepath) {
     Assimp::Importer importer;
 
     const aiScene *scene = importer.ReadFile(
-        filepath, aiProcess_FlipUVs | aiProcess_GenSmoothNormals |
-                      aiProcess_JoinIdenticalVertices | aiProcess_Triangulate |
-                      aiProcess_JoinIdenticalVertices);
+        filepath, aiProcess_GenSmoothNormals |
+                      aiProcess_JoinIdenticalVertices | aiProcess_Triangulate);
 
     if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE ||
         !scene->mMeshes) {

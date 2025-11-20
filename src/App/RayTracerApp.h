@@ -5,6 +5,7 @@
 #include "Core/VulkanComputeApp.h"
 #include "Vulkan/Pipeline.h"
 #include "Vulkan/Shader.h"
+#include "Core/AssetManager.h"
 
 class RayTracerApp : public VulkanComputeApp {
 public:
@@ -24,5 +25,8 @@ private:
     std::shared_ptr<Shader> mShader;
     std::shared_ptr<UniformBuffer<RandomSeed>> mSeed;
     std::shared_ptr<UniformBuffer<SceneData>> mSceneData;
+    std::shared_ptr<UniformBuffer<Camera>> mCamera;
 
+    std::shared_ptr<Scene> mScene;
+    std::vector<MeshRenderer> mMeshes;
 };
