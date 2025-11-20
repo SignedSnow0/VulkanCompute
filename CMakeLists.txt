@@ -5,6 +5,7 @@ add_executable(VulkanCompute
     src/App/main.cpp
     src/App/RayTracerApp.cpp
 
+    src/Core/AssetManager.cpp
     src/Core/Logger.cpp
     src/Core/VulkanComputeApp.cpp
     src/Core/Window.cpp
@@ -23,8 +24,9 @@ add_executable(VulkanCompute
 set_property(TARGET VulkanCompute PROPERTY CXX_STANDARD 20)
 
 target_link_directories(VulkanCompute PRIVATE "$ENV{VULKAN_SDK}/lib/")
-target_link_libraries(VulkanCompute PRIVATE vulkan-1.lib shaderc_combinedd.lib spirv-cross-cored.lib glfw)
+target_link_libraries(VulkanCompute PRIVATE vulkan-1.lib shaderc_combinedd.lib spirv-cross-cored.lib glfw assimp)
 
-target_include_directories(VulkanCompute PRIVATE "src" "$ENV{VULKAN_SDK}/include/" external/glfw/include, external/stb)
+target_include_directories(VulkanCompute PRIVATE "src" "$ENV{VULKAN_SDK}/include/" "external/glfw/include" "external/stb" "external/assimp/include")
 
 add_subdirectory(external/glfw)
+add_subdirectory(external/assimp)
