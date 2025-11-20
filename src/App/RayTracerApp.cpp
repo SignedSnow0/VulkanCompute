@@ -34,6 +34,7 @@ void RayTracerApp::OnUpdate(float dt) {
     mSceneData->UpdateData(scene_data);
 }
 
+
 void RayTracerApp::OnRender(float dt,
                             std::shared_ptr<CommandBuffer> commandBuffer) {
     mShader->BindSurfaceAsImage(
