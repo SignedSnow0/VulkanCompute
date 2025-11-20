@@ -81,6 +81,7 @@ void RayTracerApp::OnUpdate(float dt) {
     mCamera->UpdateData(camera);
 }
 
+
 void RayTracerApp::OnRender(float dt,
                             std::shared_ptr<CommandBuffer> commandBuffer) {
     mShader->BindSurfaceAsImage(

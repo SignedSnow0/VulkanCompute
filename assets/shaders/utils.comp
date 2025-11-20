@@ -32,5 +32,29 @@ vec3 randomOnHemisphere(inout uint state, vec3 normal) {
     return dir * sign(dot(normal, dir));
 }
 
+float fast_inverse_sqrt (float number) {
+    uint i; //codice originale: long
+    float x2, y;
+    const float threehalfs = 1.5f;
+
+    x2 = number * 0.5f;
+    y = number;
+    //i =*(long*)&y;
+    //i=0x5f3759df - (i>>1);
+    //y  = *(float*)&i;
+    //y=y*(threehalfs - (x2*y*y));
+
+    return y;
+}
+
+vec3 checkerBoardColor(vec3 color1, vec3 color2, vec3 position) {
+    float scale = 1.0;
+    float pattern = (mod(floor(position.x * scale) + floor(position.z * scale), 2.0));
+    if (pattern < 1.0) {
+        return color1;
+    } else {
+        return color2;
+    }
+}
 
 #endif
