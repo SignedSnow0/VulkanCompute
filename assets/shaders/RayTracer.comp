@@ -208,7 +208,12 @@ bool intersectSphere(Ray ray, Sphere sphere, out RayHit hit) {
     return false;
 }
 
+<<<<<<< HEAD
 bool intersectPlane(Ray ray, Plane plane, out RayHit hit) {
+=======
+
+bool intersectPlane (Ray ray, Plane plane, out RayHit hit) {
+>>>>>>> 566ff4f0ae5cc1c4591118ebbf2c31a1c4427008
     float denominator = dot(plane.normal, ray.direction);
     if(abs(denominator)>EPSILON) { //escludo i raggi paralleli al piano
         float t = dot(plane.position - ray.origin, plane.normal)/denominator; //calcolo la distanza tra la posizione dell'origine del raggio e l'intersezione con il piano
