@@ -4,7 +4,7 @@
 #include "Utils.comp"
 
 const int MAX_BOUNCES = 10;
-const int SAMPLE_COUNT = 100; //da sistemare (non va) -> smoothness delle linee
+const int SAMPLE_COUNT = 1; //da sistemare (non va) -> smoothness delle linee
 
 struct Ray {
     vec3 origin;
@@ -50,21 +50,20 @@ layout(binding = 1) uniform RandomSeed {
     uint seed;
 } random_seed;
 
-layout (binding=2) uniform SceneData {
+layout (binding = 2) uniform SceneData {
     mat4 modelMatrix;
     uint numFrames;
 } scene_data;
 
-layout (binding = 3) readonly buffer VertexBuffer {
+layout (std430, binding = 3) readonly buffer VertexBuffer {
     Vertex vertices[];
 } vertex_buffer;
 
-layout (binding = 4) readonly buffer IndexBuffer {
+layout (std430, binding = 4) readonly buffer IndexBuffer {
     uint indices[];
 } index_buffer;
 
 layout (binding = 5) uniform Camera {
-    mat4 viewMatrix;
     vec3 position;
     vec3 forward;
 } camera;
@@ -72,7 +71,7 @@ layout (binding = 5) uniform Camera {
 Ray rayGen() {
     ivec2 dim_window = imageSize(window);
     Ray ray;
-    ray.origin = -camera.position;
+    ray.origin = camera.position;
 
     // (0, 0) --------------------- (width, 0)
     //   |                               |
@@ -103,18 +102,20 @@ Ray rayGen() {
     // (-1, -1) --------------- (1, -1)
     uv.y *= -1.0; //inverto l'asse delle y (y deve crescere verso l'alto)
 
-    ray.direction = (camera.viewMatrix * normalize(vec4(uv, -1, 1))).xyz; //vettore di lunghezza unitaria
+    vec3 right = normalize(cross(camera.forward, UP));
+
+    ray.direction = normalize(camera.forward + uv.x * right + uv.y * UP);
     return ray;
 }
 
 bool intersectTriangle(Ray ray, vec3 p0, vec3 p1, vec3 p2, out RayHit hit) {
-     vec3 edge1 = p1 - p0;
+    vec3 edge1 = p1 - p0;
     vec3 edge2 = p2 - p0;
     vec3 ray_cross_e2 = cross(ray.direction, edge2);
     float det = dot(edge1, ray_cross_e2);
 
-    if (abs(det) < EPSILON)
-        return false;    // This ray is parallel to this triangle.
+    if (det > -EPSILON && det < EPSILON)
+        return false;
 
     float inv_det = 1.0 / det;
     vec3 s = ray.origin - p0;
@@ -153,14 +154,15 @@ bool intersectMesh(Ray ray, out RayHit hit) {
     hit.distance = MAX_FLOAT;
     bool hit_something = false;
 
-    for (int i = 0; i < index_buffer.indices.length() / 3; i += 3) {
-        uint index0 = index_buffer.indices[i];//ottimizazione con indexbuffer per eliminare vertici duplicati
-        uint index1 = index_buffer.indices[i + 1];
-        uint index2 = index_buffer.indices[i + 2];
+    for (uint i = 0; i < index_buffer.indices.length(); ) {
+        uint index0 = index_buffer.indices[i++];//ottimizazione con indexbuffer per eliminare vertici duplicati
+        uint index1 = index_buffer.indices[i++];
+        uint index2 = index_buffer.indices[i++];
 
         vec3 p0 = vertex_buffer.vertices[index0].position;
         vec3 p1 = vertex_buffer.vertices[index1].position;
         vec3 p2 = vertex_buffer.vertices[index2].position;
+
         p0 = (scene_data.modelMatrix * vec4(p0, 1)).xyz;
         p1 = (scene_data.modelMatrix * vec4(p1, 1)).xyz;
         p2 = (scene_data.modelMatrix * vec4(p2, 1)).xyz;
@@ -249,7 +251,6 @@ bool intersectTrangle(Ray ray, vec3 p0, vec3 p1, vec3 p2, out RayHit hit) {
         return false;
     
     float t = inv_det * dot(edge2, s_cross_e1);
-    
 
     if(t>EPSILON) {
         hit.distance = t;
@@ -314,10 +315,10 @@ bool closestHit(Ray ray, out RayHit hit) {
         hit = current_hit; //se prendo qualcosa ed è più vicino lo sovrascrivo 
         hit_something = true;
     }
-    //if (intersectMesh(ray, current_hit) && current_hit.distance < hit.distance) {
-    //    hit = current_hit; //se prendo qualcosa ed è più vicino lo sovrascrivo 
-    //    hit_something = true;
-    //}
+    if (intersectMesh(ray, current_hit) && current_hit.distance < hit.distance) {
+        hit = current_hit; //se prendo qualcosa ed è più vicino lo sovrascrivo 
+        hit_something = true;
+    }
     return hit_something;
 }
 
@@ -329,7 +330,7 @@ vec3 trace(){
 
     for(int j=0; j<SAMPLE_COUNT; j++) {
         Ray ray = rayGen();
-        ray.origin += randomOnSphere(state)*EPSILON;
+        //ray.origin += randomOnSphere(state)*EPSILON;
         RayHit hit;
         for (int i = 0; i < MAX_BOUNCES; i++) {
             if (closestHit(ray, hit)) {

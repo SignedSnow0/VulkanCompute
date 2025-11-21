@@ -20,7 +20,7 @@ RayTracerApp::RayTracerApp()
     mCamera = std::make_shared<UniformBuffer<Camera>>(
         mVulkanManager);
 
-    mScene = AssetManager::LoadScene("assets/models/teapot.obj");
+    mScene = AssetManager::LoadScene("assets/models/viking_room/viking_room.obj");
     for (auto& mesh : mScene->GetMeshes()) {
         mMeshes.push_back(MeshRenderer{ mVulkanManager, mesh });
     }
@@ -34,33 +34,33 @@ void RayTracerApp::OnUpdate(float dt) {
     static RandomSeed seed;
     static glm::mat4 modelMatrix;
     static SceneData scene_data{ 0 }; //inizializzo il valore del frame a 0
-    static Camera camera{ glm::mat4(1.0f), glm::vec3{0}, glm::vec3{0,0,-1} };
+    static Camera camera{ glm::vec3{0}, glm::vec3{0,0,-1} };
     static constexpr glm::vec3 up = glm::vec3(0, 1, 0);
     glm::vec3 right = glm::normalize(glm::cross(camera.forward, up));
 
     if (mWindow.IsKeyPressed(GLFW_KEY_UP) || mWindow.IsKeyPressed(GLFW_KEY_W)) {
-        camera.position -= camera.forward * dt;
+        camera.position += camera.forward * dt;
         scene_data.numFrames = 0; // resetto il numero di frame se cambio
                                  // posizione
     }
     if (mWindow.IsKeyPressed(GLFW_KEY_DOWN) || mWindow.IsKeyPressed(GLFW_KEY_S)) {
-        camera.position += camera.forward * dt;
+        camera.position -= camera.forward * dt;
         scene_data.numFrames = 0;
     }
     if (mWindow.IsKeyPressed(GLFW_KEY_LEFT) || mWindow.IsKeyPressed(GLFW_KEY_A)) {
-        camera.position += right * dt;
-        scene_data.numFrames = 0;
-    }
-    if (mWindow.IsKeyPressed(GLFW_KEY_RIGHT) || mWindow.IsKeyPressed(GLFW_KEY_D)) {
         camera.position -= right * dt;
         scene_data.numFrames = 0;
     }
+    if (mWindow.IsKeyPressed(GLFW_KEY_RIGHT) || mWindow.IsKeyPressed(GLFW_KEY_D)) {
+        camera.position += right * dt;
+        scene_data.numFrames = 0;
+    }
     if (mWindow.IsKeyPressed(GLFW_KEY_LEFT_SHIFT) || mWindow.IsKeyPressed(GLFW_KEY_Q)) {
-        camera.position += up * dt;
+        camera.position -= up * dt;
         scene_data.numFrames = 0;
     }
     if (mWindow.IsKeyPressed(GLFW_KEY_SPACE) || mWindow.IsKeyPressed(GLFW_KEY_E)) {
-        camera.position -= up * dt;
+        camera.position += up * dt;
         scene_data.numFrames = 0;
     }
 
@@ -68,15 +68,12 @@ void RayTracerApp::OnUpdate(float dt) {
     mSeed->UpdateData(seed); // carico i dati che mi sono creata sulla gpu
                              // attraverso il buffer
     modelMatrix = glm::translate(glm::mat4(1.0f), glm::vec3(0, 0, -0.5f));
+    modelMatrix =
+        glm::rotate(modelMatrix, -glm::half_pi<float>(), glm::vec3(1, 0, 0));
     modelMatrix = glm::scale(modelMatrix, glm::vec3(0.1f));
     scene_data.numFrames++; // aggiungo un frame
     scene_data.modelMatrix = modelMatrix;
     mSceneData->UpdateData(scene_data);
-
-    camera.viewMatrix = glm::lookAt(
-        camera.position,
-        camera.position + camera.forward,
-        glm::vec3(0, 1, 0));
 
     mCamera->UpdateData(camera);
 }

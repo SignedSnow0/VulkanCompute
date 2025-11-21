@@ -12,7 +12,6 @@ struct SceneData {
 };
 
 struct Camera {
-    glm::mat4 viewMatrix;
-    glm::vec3 position;
-    glm::vec3 forward;
+    alignas(16) glm::vec3 position;
+    alignas(16) glm::vec3 forward;
 };

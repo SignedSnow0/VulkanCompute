@@ -5,8 +5,9 @@ const float PI = 3.14159265359f;
 const float TWO_PI = 6.28318530718f;
 const float INV_PI = 0.31830988618f;
 const float INV_TWO_PI = 0.15915494309f;
-const float EPSILON = 0.0001f;
+const float EPSILON = 0.000001f;
 const float MAX_FLOAT = 3.402823466e+38f;
+const vec3 UP = vec3(0.0f, 1.0f, 0.0f);
 
 float random(inout uint state) { //state è seed
     state = state * 747796405u + 2891336453u;

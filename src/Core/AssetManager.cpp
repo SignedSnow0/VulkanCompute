@@ -13,6 +13,9 @@ std::shared_ptr<Mesh> processMesh(const aiScene *scene, const aiMesh *mesh) {
     vertices.reserve(mesh->mNumVertices);
     indices.reserve(mesh->mNumFaces * 3);
 
+    LOG_DEBUG("Processing mesh with {} vertices and {} indices",
+              mesh->mNumVertices, mesh->mNumFaces * 3);
+
     for (uint32_t i = 0; i < mesh->mNumVertices; i++) {
         Vertex vertex{};
 
@@ -76,8 +79,8 @@ std::shared_ptr<Scene> AssetManager::LoadScene(const std::string &filepath) {
     Assimp::Importer importer;
 
     const aiScene *scene = importer.ReadFile(
-        filepath, aiProcess_GenSmoothNormals |
-                      aiProcess_JoinIdenticalVertices | aiProcess_Triangulate);
+        filepath, aiProcess_GenSmoothNormals | aiProcess_PreTransformVertices | 
+        aiProcess_JoinIdenticalVertices | aiProcess_Triangulate);
 
     if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE ||
         !scene->mMeshes) {

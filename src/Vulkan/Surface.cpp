@@ -44,7 +44,6 @@ VkSwapchainKHR createSwapChain(VkPhysicalDevice physicalDevice, VkDevice device,
         imageCount > surfaceCapabilities.maxImageCount) {
         imageCount = surfaceCapabilities.maxImageCount;
     }
-    LOG_DEBUG("{}", imageCount);
 
     VkSwapchainCreateInfoKHR createInfo = {};
     createInfo.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
