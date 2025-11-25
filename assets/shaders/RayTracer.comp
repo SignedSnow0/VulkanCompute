@@ -12,15 +12,15 @@ struct Ray {
 
 struct Material {
     vec3 color;
+    float metalness;
     vec3 emission_color;
     float emission_strength;
-    float metalness;
 };
 
 struct Sphere {
     vec3 position;
-    Material material;
     float radius;
+    Material material;
 };
 
 struct RayHit {
@@ -71,6 +71,14 @@ layout (binding = 5) uniform Camera {
     vec3 position;
     vec3 forward;
 } camera;
+
+layout (binding = 6) readonly buffer Spheres {
+    Sphere spheres[];
+} sphere_buffer;
+
+layout (binding = 7) readonly buffer Planes {
+    Plane planes[];
+} plane_buffer;
 
 
 AABB computeAABB() {
@@ -308,50 +316,20 @@ bool intersectTrangle(Ray ray, vec3 p0, vec3 p1, vec3 p2, out RayHit hit) {
 }
 
 bool closestHit(Ray ray, out RayHit hit) {
-    Sphere spheres[3];
-    
-    spheres[2].position = vec3(-1, 0, -2);
-    spheres[2].radius = 1;
-    spheres[2].material.color = vec3(1, 1, 1);
-    spheres[2].material.emission_color = vec3(0, 0, 0);
-    spheres[2].material.emission_strength = 0.0;
-    spheres[2].material.metalness = 1.0;
-    
-    spheres[1].position = vec3(1, 0, -2);
-    spheres[1].radius = 1;
-    spheres[1].material.color = vec3(1, 1, 1);
-    spheres[1].material.emission_color = vec3(0, 0, 0);
-    spheres[1].material.emission_strength = 0.0;
-    spheres[1].material.metalness = 1.0;
-
-    spheres[0].position = vec3(-4, 5, -10);
-    spheres[0].radius = 5;
-    spheres[0].material.color = vec3(0, 0, 0);
-    spheres[0].material.emission_color = vec3(1, 1, 1);
-    spheres[0].material.emission_strength = 1.0;
-    spheres[0].material.metalness = 0.0;
-
-    Plane plane;
-    plane.position = vec3(0,-1,0);
-    plane.normal = vec3 (0,1,0);
-    plane.material.color = vec3 (0,0,1);
-    plane.material.emission_color = vec3(0,0,0);
-    plane.material.emission_strength = 0;
-    plane.material.metalness = 0.0;
-
     hit.distance = MAX_FLOAT;
     bool hit_something = false;
-    for (int i = 0; i < spheres.length(); i++) {
-        RayHit current_hit;
-        if (intersectSphere(ray, spheres[i], current_hit) && current_hit.distance < hit.distance) {
+    RayHit current_hit;
+    for (int i = 0; i < sphere_buffer.spheres.length(); i++) {
+        if (intersectSphere(ray, sphere_buffer.spheres[i], current_hit) && current_hit.distance < hit.distance) {
             hit = current_hit; //se prendo qualcosa ed è più vicino lo sovrascrivo 
             hit_something = true;
         }
     }
-    RayHit current_hit;
-    if (intersectPlane(ray, plane, current_hit) && current_hit.distance < hit.distance) {
-        hit = current_hit; //se prendo qualcosa ed è più vicino lo sovrascrivo 
-        hit_something = true;
+    for (int i = 0; i < plane_buffer.planes.length(); i++) {
+        if (intersectPlane(ray, plane_buffer.planes[i], current_hit) && current_hit.distance < hit.distance) {
+            hit = current_hit; //se prendo qualcosa ed è più vicino lo sovrascrivo 
+            hit_something = true;
+        }
     }
     if (intersectMesh(ray, current_hit) && current_hit.distance < hit.distance) {
         hit = current_hit; //se prendo qualcosa ed è più vicino lo sovrascrivo 

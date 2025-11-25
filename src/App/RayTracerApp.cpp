@@ -34,13 +34,13 @@ void RayTracerApp::OnStart() {
     spheres[0].radius = 1;
     spheres[0].material.color = {1, 1, 1};
     spheres[0].material.emission_color = {0, 0, 0, 0};
-    spheres[0].material.metalness = 0;
+    spheres[0].material.metalness = 1;
 
     spheres[1].position = {1, 0, -2};
     spheres[1].radius = 1;
     spheres[1].material.color = {1, 1, 1};
     spheres[1].material.emission_color = {0, 0, 0, 0};
-    spheres[1].material.metalness = 0;
+    spheres[1].material.metalness = 1;
 
     spheres[2].position = {-4, 5, -10};
     spheres[2].radius = 5;
