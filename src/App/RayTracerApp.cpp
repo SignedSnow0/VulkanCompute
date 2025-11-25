@@ -28,7 +28,40 @@ RayTracerApp::RayTracerApp()
 
 RayTracerApp::~RayTracerApp() = default;
 
-void RayTracerApp::OnStart() {}
+void RayTracerApp::OnStart() {
+    static Sphere spheres[3];
+    spheres[0].position = {-1, 0, -2};
+    spheres[0].radius = 1;
+    spheres[0].material.color = {1, 1, 1};
+    spheres[0].material.emission_color = {0, 0, 0, 0};
+    spheres[0].material.metalness = 0;
+
+    spheres[1].position = {1, 0, -2};
+    spheres[1].radius = 1;
+    spheres[1].material.color = {1, 1, 1};
+    spheres[1].material.emission_color = {0, 0, 0, 0};
+    spheres[1].material.metalness = 0;
+
+    spheres[2].position = {-4, 5, -10};
+    spheres[2].radius = 5;
+    spheres[2].material.color = {0, 0, 0};
+    spheres[2].material.emission_color = {1, 1, 1, 1};
+    spheres[2].material.metalness = 0;
+
+    mSpheresBuffer = std::make_shared<Buffer<Sphere>>(
+        mVulkanManager, spheres, sizeof(spheres), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+    
+    static Plane planes[1];
+    planes[0].position = {0, -1, 0};
+    planes[0].normal = {0, 1, 0};
+    planes[0].material.color = {0, 0, 1};
+    planes[0].material.emission_color = {0, 0, 0, 0};
+    planes[0].material.metalness = 0;
+
+    mPlanesBuffer = std::make_shared<Buffer<Plane>>(
+        mVulkanManager, planes, sizeof(planes), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+    
+}
 
 void RayTracerApp::OnUpdate(float dt) {
     static RandomSeed seed;
@@ -104,6 +137,12 @@ void RayTracerApp::OnRender(float dt,
     mShader->BindBuffer(*mMeshes.at(0).GetVertexBuffer(), "vertex_buffer",
                         commandBuffer->CurrentBufferIndex());
     mShader->BindBuffer(*mMeshes.at(0).GetIndexBuffer(), "index_buffer",
+                        commandBuffer->CurrentBufferIndex());
+    
+    mShader->BindBuffer(*mSpheresBuffer, "sphere_buffer",
+                        commandBuffer->CurrentBufferIndex());
+    
+    mShader->BindBuffer(*mPlanesBuffer, "plane_buffer",
                         commandBuffer->CurrentBufferIndex());
 
     mPipeline->Dispatch(
