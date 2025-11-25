@@ -16,6 +16,10 @@ float random(inout uint state) { //state è seed
     return float(result) / 4294967295.0f;
 }
 
+float random(inout uint state, float min, float max) {
+    return min + (max - min) * random(state);
+}
+
 float randomNormalDistribution(inout uint state) {
     float theta = TWO_PI * random(state);
     float rho = sqrt(-2.0f * log(random(state)));
