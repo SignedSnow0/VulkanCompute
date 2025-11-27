@@ -259,14 +259,14 @@ bool intersectSphere(Ray ray, Sphere sphere, out RayHit hit) {
 
 bool intersectPlane(Ray ray, Plane plane, out RayHit hit) {
     float denominator = dot(plane.normal, ray.direction);
-    if(abs(denominator)>EPSILON) { //escludo i raggi paralleli al piano
-        float t = dot(plane.position - ray.origin, plane.normal)/denominator; //calcolo la distanza tra la posizione dell'origine del raggio e l'intersezione con il piano
-        if(t>=0) { //interseca
+    if (abs(denominator) > EPSILON) { //escludo i raggi paralleli al piano
+        float t = dot(plane.position - ray.origin, plane.normal) / denominator; //calcolo la distanza tra la posizione dell'origine del raggio e l'intersezione con il piano
+        if (t >= 0) { //interseca
             hit.distance = t;
             hit.position = ray.origin + ray.direction * hit.distance;
             hit.normal = plane.normal;
             hit.material = plane.material;
-            hit.material.color = checkerBoardColor(vec3(1,1,1), vec3(0,0,0), hit.position);
+            hit.material.color *= checkerBoardColor(vec3(1,1,1), vec3(0,0,0), hit.position);
             return true;
         }
     }

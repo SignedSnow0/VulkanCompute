@@ -57,9 +57,9 @@ void RayTracerApp::OnStart() {
     Plane plane;
     plane.position = { 0, -1, 0 };
     plane.normal = { 0, 1, 0 };
-    plane.material.color = {0, 0, 1};
-    plane.material.emission_color = {0, 0, 0, 0};
-    plane.material.metalness = 0;
+    plane.color = {0, 0, 1};
+    plane.emission_color = {0, 0, 0, 0};
+    plane.metalness = 0;
     mPlanes.push_back(plane);
 
     mPlanesBuffer = std::make_shared<Buffer<Plane>>(
@@ -103,6 +103,10 @@ void RayTracerApp::OnUpdate(float dt) {
             scene_data.numFrames = 0;
         }
     }
+    if (mWindow.IsKeyPressed(GLFW_KEY_G)) {
+        mShowGui = !mShowGui;
+        scene_data.numFrames = 0;
+    }
     if (mShowGui) {
         ImGui::Begin("Spheres");
         int i = 0;
@@ -137,17 +141,17 @@ void RayTracerApp::OnUpdate(float dt) {
             ImGui::Text("Plane %d", static_cast<int>(i));
             ImGui::DragFloat3("Position", &plane.position.x, 0.1f);
             ImGui::DragFloat3("Normal", &plane.normal.x, 0.1f);
-            ImGui::ColorEdit3("Color", &plane.material.color.x);
-            ImGui::ColorEdit4("Emission Color", &plane.material.emission_color.x);
-            ImGui::DragFloat("Metalness", &plane.material.metalness, 0.01f, 0.0f, 1.0f);
+            ImGui::ColorEdit3("Color", &plane.color.x);
+            ImGui::ColorEdit4("Emission Color", &plane.emission_color.x);
+            ImGui::DragFloat("Metalness", &plane.metalness, 0.01f, 0.0f, 1.0f);
             ImGui::Separator();
             if (ImGui::Button("New Plane")) {
                 Plane newPlane;
                 newPlane.position = { 0, 0, 0 };
                 newPlane.normal = { 0, 1, 0 };
-                newPlane.material.color = { 1, 1, 1 };
-                newPlane.material.emission_color = { 0, 0, 0, 0 };
-                newPlane.material.metalness = 0;
+                newPlane.color = { 1, 1, 1 };
+                newPlane.emission_color = { 0, 0, 0, 0 };
+                newPlane.metalness = 0;
                 mPlanes.push_back(newPlane);
             }
             ImGui::PopID();
@@ -165,10 +169,6 @@ void RayTracerApp::OnUpdate(float dt) {
         mPlanesBuffer = std::make_shared<Buffer<Plane>>(
             mVulkanManager, mPlanes.data(), sizeof(Plane) * mPlanes.size(),
             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-    }
-    if (mWindow.IsKeyPressed(GLFW_KEY_G)) {
-        mShowGui = !mShowGui;
-        scene_data.numFrames = 0;
     }
 
     seed.seed = mRandomDistribution(mRandomGenerator);

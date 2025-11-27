@@ -31,7 +31,9 @@ struct Sphere {
 struct Plane {
     alignas(16) glm::vec3 position;
     alignas(16) glm::vec3 normal;
-    Material material;
+    alignas(16) glm::vec3 color;
+    float metalness;
+    glm::vec4 emission_color;
 };
 
 
