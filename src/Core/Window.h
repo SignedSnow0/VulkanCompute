@@ -13,8 +13,12 @@ public:
     [[nodiscard]] uint32_t Width() const;
     [[nodiscard]] uint32_t Height() const;
 
-    bool IsKeyPressed(int key) const;
+    bool IsKeyPressed(int key);
+    bool IsKeyReleased(int key);
+    bool IsKeyDown(int key);
 
 private:
-    GLFWwindow *mWindow;
+    GLFWwindow* mWindow;
+
+    bool mKeys[512]{ false };
 };

@@ -40,6 +40,26 @@ uint32_t Window::Height() const {
     return static_cast<uint32_t>(height);
 }
 
-bool Window::IsKeyPressed(int key) const {
+bool Window::IsKeyPressed(int key) {
+    if (key < 0 || key >= 512) {
+        return false;
+    }
+    bool lastState = mKeys[key];
+    mKeys[key] = glfwGetKey(mWindow, key) == GLFW_PRESS;
+
+    return !lastState && (glfwGetKey(mWindow, key) == GLFW_PRESS);
+}
+
+bool Window::IsKeyReleased(int key) {
+    if (key < 0 || key >= 512) {
+        return false;
+    }
+    bool lastState = mKeys[key];
+    mKeys[key] = glfwGetKey(mWindow, key) == GLFW_PRESS;
+
+    return lastState && (glfwGetKey(mWindow, key) == GLFW_RELEASE);
+}
+
+bool Window::IsKeyDown(int key) {
     return glfwGetKey(mWindow, key) == GLFW_PRESS;
 }

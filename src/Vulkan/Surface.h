@@ -12,7 +12,7 @@
 class Surface {
 public:
     Surface(const std::shared_ptr<VulkanManager> &vulkanManager,
-            const Window &window, VkImageLayout initialLayout);
+            const Window &window, VkImageLayout initialLayout, uint32_t imageCount = 0);
     ~Surface();
 
     [[nodiscard]] inline VkFormat Format() const { return mFormat; }

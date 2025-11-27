@@ -8,11 +8,12 @@
 #include "Vulkan/RenderPass.h"
 #include "Vulkan/Surface.h"
 #include "Vulkan/VulkanManager.h"
+#include "Vulkan/Gui.h"
 
 class VulkanComputeApp {
 public:
     VulkanComputeApp(uint32_t windowWidth, uint32_t windowHeight,
-                     const char *windowTitle);
+                     const char *windowTitle, uint32_t imageCount = 0);
     virtual ~VulkanComputeApp();
 
     virtual void OnStart() = 0;
@@ -25,15 +26,16 @@ protected:
     Window mWindow;
     std::shared_ptr<VulkanManager> mVulkanManager;
     std::shared_ptr<Surface> mSurface;
+    bool mShowGui = false;
 
 private:
     void Start();
     void MainLoop();
     void Stop();
 
-    std::shared_ptr<RenderPass> mRenderPass;
     std::shared_ptr<ComputePipeline> mComputePipeline;
     std::shared_ptr<CommandBuffer> mCommandBuffer;
+    std::shared_ptr<Gui> mGui;
 
     friend int main(int argc, char **argv);
 };

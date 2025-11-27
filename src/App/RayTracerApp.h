@@ -27,6 +27,9 @@ private:
     std::shared_ptr<UniformBuffer<SceneData>> mSceneData;
     std::shared_ptr<UniformBuffer<Camera>> mCamera;
 
+    std::vector<Sphere> mSpheres;
+    std::vector<Plane> mPlanes;
+
     std::shared_ptr<Scene> mScene;
     std::vector<MeshRenderer> mMeshes;
     std::shared_ptr<Buffer<Sphere>> mSpheresBuffer;

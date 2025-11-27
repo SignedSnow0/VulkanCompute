@@ -12,7 +12,7 @@ VkSurfaceKHR createSurface(GLFWwindow *window, VkInstance instance) {
 
 VkSwapchainKHR createSwapChain(VkPhysicalDevice physicalDevice, VkDevice device,
                                VkSurfaceKHR surface, VkFormat format,
-                               VkExtent2D extent) {
+                               VkExtent2D extent, uint32_t preferredImageCount = 0) {
     VkSurfaceCapabilitiesKHR surfaceCapabilities;
     vkGetPhysicalDeviceSurfaceCapabilitiesKHR(physicalDevice, surface,
                                               &surfaceCapabilities);
@@ -33,7 +33,7 @@ VkSwapchainKHR createSwapChain(VkPhysicalDevice physicalDevice, VkDevice device,
 
     VkPresentModeKHR presentMode = VK_PRESENT_MODE_FIFO_KHR;
     for (const auto &availablePresentMode : presentModes) {
-        if (availablePresentMode == VK_PRESENT_MODE_MAILBOX_KHR) {
+        if (availablePresentMode == VK_PRESENT_MODE_MAILBOX_KHR || availablePresentMode == VK_PRESENT_MODE_FIFO_LATEST_READY_KHR) {
             presentMode = availablePresentMode;
             break;
         }
@@ -43,6 +43,11 @@ VkSwapchainKHR createSwapChain(VkPhysicalDevice physicalDevice, VkDevice device,
     if (surfaceCapabilities.maxImageCount > 0 &&
         imageCount > surfaceCapabilities.maxImageCount) {
         imageCount = surfaceCapabilities.maxImageCount;
+    }
+    if (preferredImageCount && preferredImageCount >= surfaceCapabilities.minImageCount &&
+        (surfaceCapabilities.maxImageCount == 0 ||
+         preferredImageCount <= surfaceCapabilities.maxImageCount)) {
+        imageCount = preferredImageCount;
     }
 
     VkSwapchainCreateInfoKHR createInfo = {};
@@ -158,7 +163,7 @@ std::vector<VkSampler> CreateSamplers(VkDevice device, uint32_t count) {
 }
 
 Surface::Surface(const std::shared_ptr<VulkanManager> &vulkanManager,
-                 const Window &window, VkImageLayout initialLayout)
+                 const Window &window, VkImageLayout initialLayout, uint32_t imageCount)
     : mVulkanManager(vulkanManager) {
     mFormat = VK_FORMAT_R8G8B8A8_UNORM;
     mExtent = {window.Width(), window.Height()};
@@ -167,7 +172,7 @@ Surface::Surface(const std::shared_ptr<VulkanManager> &vulkanManager,
 
     mSwapchain =
         createSwapChain(mVulkanManager->PhysicalDevice(),
-                        mVulkanManager->Device(), mSurface, mFormat, mExtent);
+                        mVulkanManager->Device(), mSurface, mFormat, mExtent, imageCount);
     mSwapchainImages = getSwapChainImages(mVulkanManager->Device(), mSwapchain);
     mSwapchainImageViews =
         createImageViews(mVulkanManager->Device(), mSwapchainImages, mFormat);

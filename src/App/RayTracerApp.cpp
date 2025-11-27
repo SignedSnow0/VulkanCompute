@@ -2,10 +2,10 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <stdlib.h>
 #include <time.h>
-
+#include <imgui.h>
 
 RayTracerApp::RayTracerApp()
-    : VulkanComputeApp(1920, 1080, "Vulkan Ray Tracer") {
+    : VulkanComputeApp(1920, 1080, "Vulkan Ray Tracer", 1) {
     std::random_device rd;
     mRandomGenerator = std::mt19937(rd());
     mRandomDistribution = std::uniform_int_distribution<uint32_t>();
@@ -29,38 +29,41 @@ RayTracerApp::RayTracerApp()
 RayTracerApp::~RayTracerApp() = default;
 
 void RayTracerApp::OnStart() {
-    static Sphere spheres[3];
-    spheres[0].position = {-1, 0, -2};
-    spheres[0].radius = 1;
-    spheres[0].material.color = {1, 1, 1};
-    spheres[0].material.emission_color = {0, 0, 0, 0};
-    spheres[0].material.metalness = 1;
+    Sphere sphere;
+    sphere.position = { -1, 0, -2 };
+    sphere.radius = 1;
+    sphere.material.color = {1, 1, 1};
+    sphere.material.emission_color = {0, 0, 0, 0};
+    sphere.material.metalness = 1;
+    mSpheres.push_back(sphere);
 
-    spheres[1].position = {1, 0, -2};
-    spheres[1].radius = 1;
-    spheres[1].material.color = {1, 1, 1};
-    spheres[1].material.emission_color = {0, 0, 0, 0};
-    spheres[1].material.metalness = 1;
+    sphere.position = { 1, 0, -2 };
+    sphere.radius = 1;
+    sphere.material.color = {1, 1, 1};
+    sphere.material.emission_color = {0, 0, 0, 0};
+    sphere.material.metalness = 1;
+    mSpheres.push_back(sphere);
 
-    spheres[2].position = {-4, 5, -10};
-    spheres[2].radius = 5;
-    spheres[2].material.color = {0, 0, 0};
-    spheres[2].material.emission_color = {1, 1, 1, 1};
-    spheres[2].material.metalness = 0;
+    sphere.position = { -4, 5, -10 };
+    sphere.radius = 5;
+    sphere.material.color = {0, 0, 0};
+    sphere.material.emission_color = {1, 1, 1, 1};
+    sphere.material.metalness = 0;
+    mSpheres.push_back(sphere);
 
     mSpheresBuffer = std::make_shared<Buffer<Sphere>>(
-        mVulkanManager, spheres, sizeof(spheres), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+        mVulkanManager, mSpheres.data(), sizeof(Sphere) * mSpheres.size(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
     
-    static Plane planes[1];
-    planes[0].position = {0, -1, 0};
-    planes[0].normal = {0, 1, 0};
-    planes[0].material.color = {0, 0, 1};
-    planes[0].material.emission_color = {0, 0, 0, 0};
-    planes[0].material.metalness = 0;
+    Plane plane;
+    plane.position = { 0, -1, 0 };
+    plane.normal = { 0, 1, 0 };
+    plane.material.color = {0, 0, 1};
+    plane.material.emission_color = {0, 0, 0, 0};
+    plane.material.metalness = 0;
+    mPlanes.push_back(plane);
 
     mPlanesBuffer = std::make_shared<Buffer<Plane>>(
-        mVulkanManager, planes, sizeof(planes), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-    
+        mVulkanManager, mPlanes.data(), sizeof(Plane) * mPlanes.size(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 }
 
 void RayTracerApp::OnUpdate(float dt) {
@@ -71,29 +74,100 @@ void RayTracerApp::OnUpdate(float dt) {
     static constexpr glm::vec3 up = glm::vec3(0, 1, 0);
     glm::vec3 right = glm::normalize(glm::cross(camera.forward, up));
 
-    if (mWindow.IsKeyPressed(GLFW_KEY_UP) || mWindow.IsKeyPressed(GLFW_KEY_W)) {
-        camera.position += camera.forward * dt;
-        scene_data.numFrames = 0; // resetto il numero di frame se cambio
-                                 // posizione
+    bool oldGuiState = mShowGui;
+
+    if (!mShowGui) {
+        if (mWindow.IsKeyDown(GLFW_KEY_UP) || mWindow.IsKeyDown(GLFW_KEY_W)) {
+            camera.position += camera.forward * dt;
+            scene_data.numFrames = 0; // resetto il numero di frame se cambio
+            // posizione
+        }
+        if (mWindow.IsKeyDown(GLFW_KEY_DOWN) || mWindow.IsKeyDown(GLFW_KEY_S)) {
+            camera.position -= camera.forward * dt;
+            scene_data.numFrames = 0;
+        }
+        if (mWindow.IsKeyDown(GLFW_KEY_LEFT) || mWindow.IsKeyDown(GLFW_KEY_A)) {
+            camera.position -= right * dt;
+            scene_data.numFrames = 0;
+        }
+        if (mWindow.IsKeyDown(GLFW_KEY_RIGHT) || mWindow.IsKeyDown(GLFW_KEY_D)) {
+            camera.position += right * dt;
+            scene_data.numFrames = 0;
+        }
+        if (mWindow.IsKeyDown(GLFW_KEY_LEFT_SHIFT) || mWindow.IsKeyDown(GLFW_KEY_Q)) {
+            camera.position -= up * dt;
+            scene_data.numFrames = 0;
+        }
+        if (mWindow.IsKeyDown(GLFW_KEY_SPACE) || mWindow.IsKeyDown(GLFW_KEY_E)) {
+            camera.position += up * dt;
+            scene_data.numFrames = 0;
+        }
     }
-    if (mWindow.IsKeyPressed(GLFW_KEY_DOWN) || mWindow.IsKeyPressed(GLFW_KEY_S)) {
-        camera.position -= camera.forward * dt;
+    if (mShowGui) {
+        ImGui::Begin("Spheres");
+        int i = 0;
+        for (auto& sphere : mSpheres) {
+            ImGui::PushID(static_cast<int>(i));
+            ImGui::Text("Sphere %d", static_cast<int>(i));
+            ImGui::DragFloat3("Position", &sphere.position.x, 0.1f);
+            ImGui::DragFloat("Radius", &sphere.radius, 0.1f, 0.1f, 100.0f);
+            ImGui::ColorEdit3("Color", &sphere.material.color.x);
+            ImGui::ColorEdit4("Emission Color", &sphere.material.emission_color.x);
+            ImGui::DragFloat("Metalness", &sphere.material.metalness, 0.01f, 0.0f, 1.0f);
+            ImGui::Separator();
+            if (ImGui::Button("New Sphere")) {
+                Sphere newSphere;
+                newSphere.position = { 0, 0, 0 };
+                newSphere.radius = 1;
+                newSphere.material.color = { 1, 1, 1 };
+                newSphere.material.emission_color = { 0, 0, 0, 0 };
+                newSphere.material.metalness = 0;
+                mSpheres.push_back(newSphere);
+            }
+            ImGui::PopID();
+
+            i++;
+        }
+        ImGui::End();
+
+        ImGui::Begin("Planes");
+        i = 0;
+        for (auto& plane : mPlanes) {
+            ImGui::PushID(static_cast<int>(i));
+            ImGui::Text("Plane %d", static_cast<int>(i));
+            ImGui::DragFloat3("Position", &plane.position.x, 0.1f);
+            ImGui::DragFloat3("Normal", &plane.normal.x, 0.1f);
+            ImGui::ColorEdit3("Color", &plane.material.color.x);
+            ImGui::ColorEdit4("Emission Color", &plane.material.emission_color.x);
+            ImGui::DragFloat("Metalness", &plane.material.metalness, 0.01f, 0.0f, 1.0f);
+            ImGui::Separator();
+            if (ImGui::Button("New Plane")) {
+                Plane newPlane;
+                newPlane.position = { 0, 0, 0 };
+                newPlane.normal = { 0, 1, 0 };
+                newPlane.material.color = { 1, 1, 1 };
+                newPlane.material.emission_color = { 0, 0, 0, 0 };
+                newPlane.material.metalness = 0;
+                mPlanes.push_back(newPlane);
+            }
+            ImGui::PopID();
+
+            i++;
+        }
+        ImGui::End();
+    }
+    if (oldGuiState && !mShowGui) {
         scene_data.numFrames = 0;
+        mSpheresBuffer = std::make_shared<Buffer<Sphere>>(
+            mVulkanManager, mSpheres.data(), sizeof(Sphere) * mSpheres.size(),
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+
+        mPlanesBuffer = std::make_shared<Buffer<Plane>>(
+            mVulkanManager, mPlanes.data(), sizeof(Plane) * mPlanes.size(),
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
     }
-    if (mWindow.IsKeyPressed(GLFW_KEY_LEFT) || mWindow.IsKeyPressed(GLFW_KEY_A)) {
-        camera.position -= right * dt;
-        scene_data.numFrames = 0;
-    }
-    if (mWindow.IsKeyPressed(GLFW_KEY_RIGHT) || mWindow.IsKeyPressed(GLFW_KEY_D)) {
-        camera.position += right * dt;
-        scene_data.numFrames = 0;
-    }
-    if (mWindow.IsKeyPressed(GLFW_KEY_LEFT_SHIFT) || mWindow.IsKeyPressed(GLFW_KEY_Q)) {
-        camera.position -= up * dt;
-        scene_data.numFrames = 0;
-    }
-    if (mWindow.IsKeyPressed(GLFW_KEY_SPACE) || mWindow.IsKeyPressed(GLFW_KEY_E)) {
-        camera.position += up * dt;
+    if (mWindow.IsKeyPressed(GLFW_KEY_G)) {
+        mShowGui = !mShowGui;
         scene_data.numFrames = 0;
     }
 
