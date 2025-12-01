@@ -23,20 +23,13 @@ struct Material {
 };
 
 struct Sphere {
-    glm::vec3 position;
+    alignas(16) glm::vec3 position;
     float radius;
-    Material material;
+    uint32_t materialIndex;
 };
 
 struct Plane {
     alignas(16) glm::vec3 position;
     alignas(16) glm::vec3 normal;
-    alignas(16) glm::vec3 color;
-    float metalness;
-    glm::vec4 emission_color;
+    uint32_t materialIndex;
 };
-
-
-
-
-

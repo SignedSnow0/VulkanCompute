@@ -33,9 +33,10 @@ add_executable(VulkanCompute
 set_property(TARGET VulkanCompute PROPERTY CXX_STANDARD 20)
 
 target_link_directories(VulkanCompute PRIVATE "$ENV{VULKAN_SDK}/lib/")
-target_link_libraries(VulkanCompute PRIVATE vulkan-1.lib shaderc_combinedd.lib spirv-cross-cored.lib glfw assimp)
+target_link_libraries(VulkanCompute PRIVATE vulkan-1.lib shaderc_combined.lib spirv-cross-core.lib glfw assimp)
 
 target_include_directories(VulkanCompute PRIVATE "src" "$ENV{VULKAN_SDK}/include/" "external/glfw/include" "external/stb" "external/assimp/include" "external/imgui" "external/imgui/backends")
 
 add_subdirectory(external/glfw)
 add_subdirectory(external/assimp)
+

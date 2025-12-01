@@ -32,38 +32,52 @@ void RayTracerApp::OnStart() {
     Sphere sphere;
     sphere.position = { -1, 0, -2 };
     sphere.radius = 1;
-    sphere.material.color = {1, 1, 1};
-    sphere.material.emission_color = {0, 0, 0, 0};
-    sphere.material.metalness = 1;
+    sphere.materialIndex = 0;
     mSpheres.push_back(sphere);
+
+    Material material;
+    material.color = { 1, 1, 1 };
+    material.emission_color = { 0, 0, 0, 0 };
+    material.metalness = 1;
+    mMaterials.push_back(material);
 
     sphere.position = { 1, 0, -2 };
     sphere.radius = 1;
-    sphere.material.color = {1, 1, 1};
-    sphere.material.emission_color = {0, 0, 0, 0};
-    sphere.material.metalness = 1;
+    sphere.materialIndex = 1;
     mSpheres.push_back(sphere);
+
+    material.color = {1, 1, 1};
+    material.emission_color = {0, 0, 0, 0};
+    material.metalness = 1;
+    mMaterials.push_back(material);
 
     sphere.position = { -4, 5, -10 };
     sphere.radius = 5;
-    sphere.material.color = {0, 0, 0};
-    sphere.material.emission_color = {1, 1, 1, 1};
-    sphere.material.metalness = 0;
+    sphere.materialIndex = 2;
     mSpheres.push_back(sphere);
 
-    mSpheresBuffer = std::make_shared<Buffer<Sphere>>(
-        mVulkanManager, mSpheres.data(), sizeof(Sphere) * mSpheres.size(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-    
+    material.color = {0, 0, 0};
+    material.emission_color = {1, 1, 1, 1};
+    material.metalness = 0;
+    mMaterials.push_back(material);
+
     Plane plane;
     plane.position = { 0, -1, 0 };
     plane.normal = { 0, 1, 0 };
-    plane.color = {0, 0, 1};
-    plane.emission_color = {0, 0, 0, 0};
-    plane.metalness = 0;
+    plane.materialIndex = 3;
     mPlanes.push_back(plane);
 
+    material.color = {0, 0, 1};
+    material.emission_color = {0, 0, 0, 0};
+    material.metalness = 0;
+    mMaterials.push_back(material);
+
+    mSpheresBuffer = std::make_shared<Buffer<Sphere>>(
+        mVulkanManager, mSpheres.data(), sizeof(Sphere) * mSpheres.size(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
     mPlanesBuffer = std::make_shared<Buffer<Plane>>(
         mVulkanManager, mPlanes.data(), sizeof(Plane) * mPlanes.size(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+    mMaterialsBuffer = std::make_shared<Buffer<Material>>(
+        mVulkanManager, mMaterials.data(), sizeof(Material) * mMaterials.size(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 }
 
 void RayTracerApp::OnUpdate(float dt) {
@@ -115,18 +129,22 @@ void RayTracerApp::OnUpdate(float dt) {
             ImGui::Text("Sphere %d", static_cast<int>(i));
             ImGui::DragFloat3("Position", &sphere.position.x, 0.1f);
             ImGui::DragFloat("Radius", &sphere.radius, 0.1f, 0.1f, 100.0f);
-            ImGui::ColorEdit3("Color", &sphere.material.color.x);
-            ImGui::ColorEdit4("Emission Color", &sphere.material.emission_color.x);
-            ImGui::DragFloat("Metalness", &sphere.material.metalness, 0.01f, 0.0f, 1.0f);
+            ImGui::ColorEdit3("Color", &mMaterials[sphere.materialIndex].color.x);
+            ImGui::ColorEdit4("Emission Color", &mMaterials[sphere.materialIndex].emission_color.x);
+            ImGui::DragFloat("Metalness", &mMaterials[sphere.materialIndex].metalness, 0.01f, 0.0f, 1.0f);
             ImGui::Separator();
             if (ImGui::Button("New Sphere")) {
                 Sphere newSphere;
                 newSphere.position = { 0, 0, 0 };
                 newSphere.radius = 1;
-                newSphere.material.color = { 1, 1, 1 };
-                newSphere.material.emission_color = { 0, 0, 0, 0 };
-                newSphere.material.metalness = 0;
+                newSphere.materialIndex = static_cast<int>(mMaterials.size());
                 mSpheres.push_back(newSphere);
+
+                Material newMaterial;
+                newMaterial.color = { 1, 1, 1 };
+                newMaterial.emission_color = { 0, 0, 0, 0 };
+                newMaterial.metalness = 0;
+                mMaterials.push_back(newMaterial);
             }
             ImGui::PopID();
 
@@ -141,18 +159,22 @@ void RayTracerApp::OnUpdate(float dt) {
             ImGui::Text("Plane %d", static_cast<int>(i));
             ImGui::DragFloat3("Position", &plane.position.x, 0.1f);
             ImGui::DragFloat3("Normal", &plane.normal.x, 0.1f);
-            ImGui::ColorEdit3("Color", &plane.color.x);
-            ImGui::ColorEdit4("Emission Color", &plane.emission_color.x);
-            ImGui::DragFloat("Metalness", &plane.metalness, 0.01f, 0.0f, 1.0f);
+            ImGui::ColorEdit3("Color", &mMaterials[plane.materialIndex].color.x);
+            ImGui::ColorEdit4("Emission Color", &mMaterials[plane.materialIndex].emission_color.x);
+            ImGui::DragFloat("Metalness", &mMaterials[plane.materialIndex].metalness, 0.01f, 0.0f, 1.0f);
             ImGui::Separator();
             if (ImGui::Button("New Plane")) {
                 Plane newPlane;
                 newPlane.position = { 0, 0, 0 };
                 newPlane.normal = { 0, 1, 0 };
-                newPlane.color = { 1, 1, 1 };
-                newPlane.emission_color = { 0, 0, 0, 0 };
-                newPlane.metalness = 0;
+                newPlane.materialIndex = static_cast<int>(mMaterials.size());
                 mPlanes.push_back(newPlane);
+
+                Material newMaterial;
+                newMaterial.color = { 1, 1, 1 };
+                newMaterial.emission_color = { 0, 0, 0, 0 };
+                newMaterial.metalness = 0;
+                mMaterials.push_back(newMaterial);
             }
             ImGui::PopID();
 
@@ -219,8 +241,11 @@ void RayTracerApp::OnRender(float dt,
     mShader->BindBuffer(*mPlanesBuffer, "plane_buffer",
                         commandBuffer->CurrentBufferIndex());
 
+    mShader->BindBuffer(*mMaterialsBuffer, "material_buffer",
+                        commandBuffer->CurrentBufferIndex());
+
     mPipeline->Dispatch(
-        commandBuffer, (mSurface->Extent().width + 7) / 8,
+        commandBuffer, (mSurface->Extent().width + 15) / 16,
         (mSurface->Extent().height + 7) / 8,
         1); // chiamo il kernel e definisco le dimensioni dei blocchi
 }

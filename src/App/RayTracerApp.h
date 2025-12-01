@@ -29,9 +29,11 @@ private:
 
     std::vector<Sphere> mSpheres;
     std::vector<Plane> mPlanes;
+    std::vector<Material> mMaterials;
 
     std::shared_ptr<Scene> mScene;
     std::vector<MeshRenderer> mMeshes;
     std::shared_ptr<Buffer<Sphere>> mSpheresBuffer;
     std::shared_ptr<Buffer<Plane>> mPlanesBuffer;
+    std::shared_ptr<Buffer<Material>> mMaterialsBuffer;
 };
