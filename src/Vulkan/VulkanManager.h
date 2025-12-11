@@ -16,6 +16,29 @@
         }                                                                      \
     }
 
+struct QueueInfo {
+    VkQueue compute;
+    uint32_t computeFamilyIndex;
+    VkCommandPool computeCommandPool;
+    VkCommandBuffer computeCommandBuffer;
+
+    VkQueue graphics;
+    uint32_t graphicsFamilyIndex;
+    VkCommandPool graphicsCommandPool;
+    VkCommandBuffer graphicsCommandBuffer;
+
+    VkQueue transfer;
+    uint32_t transferFamilyIndex;
+    VkCommandPool transferCommandPool;
+    VkCommandBuffer transferCommandBuffer;
+};
+
+enum class CommandType {
+    Compute,
+    Graphics,
+    Transfer
+};
+
 class VulkanManager {
 public:
     VulkanManager(Window &window);
@@ -26,19 +49,21 @@ public:
         return mPhysicalDevice;
     }
     [[nodiscard]] inline VkDevice Device() const { return mDevice; }
-    [[nodiscard]] inline VkQueue ComputeQueue() const { return mComputeQueue; }
-    [[nodiscard]] inline uint32_t ComputeQueueFamilyIndex() const { return 0; }
+    [[nodiscard]] inline VkQueue ComputeQueue() const { return mQueues.compute; }
+    [[nodiscard]] inline uint32_t ComputeQueueFamilyIndex() const { return mQueues.computeFamilyIndex; }
+    [[nodiscard]] inline VkQueue GraphicsQueue() const { return mQueues.graphics; }
+    [[nodiscard]] inline uint32_t GraphicsQueueFamilyIndex() const { return mQueues.graphicsFamilyIndex; }
+    [[nodiscard]] inline VkQueue TransferQueue() const { return mQueues.transfer; }
+    [[nodiscard]] inline uint32_t TransferQueueFamilyIndex() const { return mQueues.transferFamilyIndex; }
 
     void WaitIdle() const;
-    void SubmitCommand(std::function<void(VkCommandBuffer)> func);
+    void SubmitCommand(std::function<void(VkCommandBuffer)> func, CommandType type);
 
 private:
     VkInstance mInstance;
     VkDebugUtilsMessengerEXT mDebugMessenger;
     VkPhysicalDevice mPhysicalDevice;
     VkDevice mDevice;
-    VkQueue mComputeQueue;
 
-    VkCommandPool mCommandPool;
-    VkCommandBuffer mCommandBuffer;
+    QueueInfo mQueues;
 };

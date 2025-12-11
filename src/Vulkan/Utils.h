@@ -13,5 +13,7 @@ void createBuffer(const std::shared_ptr<VulkanManager> &vulkanManager,
 void copyBuffer(const std::shared_ptr<VulkanManager> &vulkanManager,
                 VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size);
 
-void changeLayout(VkCommandBuffer cmdBuffer, VkImageLayout oldLayout,
+void copyBufferToImage(VkCommandBuffer cmdBuffer, VkBuffer buffer, VkImage image, VkExtent2D extent, VkImageLayout layout);
+
+bool changeLayout(VkCommandBuffer cmdBuffer, VkImageLayout oldLayout,
                   VkImageLayout newLayout, VkImage image);

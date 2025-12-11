@@ -9,7 +9,8 @@
 class Image {
 public:
     Image(const std::shared_ptr<VulkanManager> &vulkanManager,
-          VkExtent2D extent);
+        VkExtent2D extent);
+    Image(const std::shared_ptr<VulkanManager>& vulkanManager, const std::string& file);
     ~Image();
 
     [[nodiscard]] inline VkImageView ImageView() const { return mImageView; }

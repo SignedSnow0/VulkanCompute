@@ -20,6 +20,9 @@ RayTracerApp::RayTracerApp()
     mCamera = std::make_shared<UniformBuffer<Camera>>(
         mVulkanManager);
 
+    mMeshAlbedo = std::make_shared<Image>(
+        mVulkanManager, "assets/models/viking_room/viking_room.png");
+
     mScene = AssetManager::LoadScene("assets/models/viking_room/viking_room.obj");
     for (auto& mesh : mScene->GetMeshes()) {
         mMeshes.push_back(MeshRenderer{ mVulkanManager, mesh });

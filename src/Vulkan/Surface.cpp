@@ -193,7 +193,7 @@ Surface::Surface(const std::shared_ptr<VulkanManager> &vulkanManager,
                              mSwapchainImages[i]);
                 mLayouts[i] = initialLayout;
             }
-        });
+        }, CommandType::Graphics);
 
     LOG_INFO("Swapchain created with {} images.", mSwapchainImages.size());
 }

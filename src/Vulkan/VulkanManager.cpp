@@ -5,8 +5,8 @@
 #include <vector>
 #include <vulkan/vulkan_core.h>
 
-
 #include "Core/Logger.h"
+#include <set>
 
 static VKAPI_ATTR VkBool32 VKAPI_CALL
 debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
@@ -213,35 +213,78 @@ VkDevice createDevice(VkPhysicalDevice physicalDevice,
     return device;
 }
 
-VkQueue getComputeQueue(VkDevice device) {
-    VkQueue computeQueue;
-    vkGetDeviceQueue(device, 0, 0, &computeQueue); // Assume family index 0
-    return computeQueue;
+QueueInfo getQueues(VkDevice device, VkPhysicalDevice physicalDevice) {
+    QueueInfo queueInfo{};
+    queueInfo.graphics = VK_NULL_HANDLE;
+    queueInfo.transfer = VK_NULL_HANDLE;
+    queueInfo.compute = VK_NULL_HANDLE;
+
+    uint32_t queueFamilyCount = 0;
+    vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice,
+        &queueFamilyCount, nullptr);
+    std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
+    vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice,
+        &queueFamilyCount, queueFamilies.data());
+
+    for (uint32_t i = 0; i < queueFamilyCount; i++) {
+        if (queueInfo.graphics == VK_NULL_HANDLE &&
+            (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)) {
+            vkGetDeviceQueue(device, i, 0, &queueInfo.graphics);
+            queueInfo.graphicsFamilyIndex = i;
+        }
+
+        if (queueInfo.transfer == VK_NULL_HANDLE &&
+            (queueFamilies[i].queueFlags & VK_QUEUE_TRANSFER_BIT)) {
+            vkGetDeviceQueue(device, i, 0, &queueInfo.transfer);
+            queueInfo.transferFamilyIndex = i;
+        }
+
+        if (queueInfo.compute == VK_NULL_HANDLE &&
+             (queueFamilies[i].queueFlags & VK_QUEUE_COMPUTE_BIT)) {
+            vkGetDeviceQueue(device, i, 0, &queueInfo.compute);
+            queueInfo.computeFamilyIndex = i;
+        }
+
+        if (queueInfo.graphics != VK_NULL_HANDLE &&
+            queueInfo.transfer != VK_NULL_HANDLE &&
+            queueInfo.compute != VK_NULL_HANDLE) {
+            break;
+        }
+    }
+
+    return queueInfo;
 }
 
-static VkCommandPool createCommandPool(VkDevice device,
-                                       uint32_t queueFamilyIndex) {
+static void createCommandPool(VkDevice device, QueueInfo &queueInfo) {
     VkCommandPoolCreateInfo poolInfo{};
     poolInfo.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-    poolInfo.queueFamilyIndex = queueFamilyIndex;
     poolInfo.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 
-    VkCommandPool commandPool;
-    VK_CHECK(vkCreateCommandPool(device, &poolInfo, nullptr, &commandPool));
-    return commandPool;
+    poolInfo.queueFamilyIndex = queueInfo.computeFamilyIndex;
+    VK_CHECK(vkCreateCommandPool(device, &poolInfo, nullptr, &queueInfo.computeCommandPool));
+
+    poolInfo.queueFamilyIndex = queueInfo.graphicsFamilyIndex;
+    VK_CHECK(vkCreateCommandPool(device, &poolInfo, nullptr, &queueInfo.graphicsCommandPool));
+
+    poolInfo.queueFamilyIndex = queueInfo.transferFamilyIndex;
+    VK_CHECK(vkCreateCommandPool(device, &poolInfo, nullptr, &queueInfo.transferCommandPool));
 }
 
-VkCommandBuffer createCommandBuffer(VkDevice device,
-                                    VkCommandPool commandPool) {
+void createCommandBuffer(VkDevice device,
+                                    QueueInfo &queueInfo) {
     VkCommandBufferAllocateInfo allocInfo{};
     allocInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    allocInfo.commandPool = commandPool;
     allocInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     allocInfo.commandBufferCount = 1;
 
-    VkCommandBuffer commandBuffer;
-    VK_CHECK(vkAllocateCommandBuffers(device, &allocInfo, &commandBuffer));
-    return commandBuffer;
+    allocInfo.commandPool = queueInfo.computeCommandPool;
+    VK_CHECK(vkAllocateCommandBuffers(device, &allocInfo, &queueInfo.computeCommandBuffer));
+
+    allocInfo.commandPool = queueInfo.graphicsCommandPool;
+    VK_CHECK(vkAllocateCommandBuffers(device, &allocInfo, &queueInfo.graphicsCommandBuffer));
+
+    allocInfo.commandPool = queueInfo.transferCommandPool;
+    VK_CHECK(vkAllocateCommandBuffers(device, &allocInfo, &queueInfo.transferCommandBuffer));
 }
 
 VulkanManager::VulkanManager(Window &window) {
@@ -269,17 +312,15 @@ VulkanManager::VulkanManager(Window &window) {
 #endif
     mPhysicalDevice = choosePhysicalDevice(mInstance);
     mDevice = createDevice(mPhysicalDevice, layers, deviceExtensions);
-    mComputeQueue = getComputeQueue(mDevice);
+    mQueues = getQueues(mDevice, mPhysicalDevice);
 
-    mCommandPool = createCommandPool(mDevice, 0);
-    mCommandBuffer = createCommandBuffer(mDevice, mCommandPool);
+    createCommandPool(mDevice, mQueues);
+    createCommandBuffer(mDevice, mQueues);
 
     LOG_INFO("VulkanManager initialized successfully");
 }
 
 VulkanManager::~VulkanManager() {
-    vkFreeCommandBuffers(mDevice, mCommandPool, 1, &mCommandBuffer);
-    vkDestroyCommandPool(mDevice, mCommandPool, nullptr);
     vkDestroyDevice(mDevice, nullptr);
 
 #ifndef NDEBUG
@@ -289,26 +330,52 @@ VulkanManager::~VulkanManager() {
     vkDestroyInstance(mInstance, nullptr);
 }
 
-void VulkanManager::SubmitCommand(std::function<void(VkCommandBuffer)> func) {
-    vkResetCommandPool(mDevice, mCommandPool, 0);
+static void submitCommand(std::function<void(VkCommandBuffer)> func,
+                          VkDevice device, VkQueue queue,
+                          VkCommandPool commandPool,
+                          VkCommandBuffer commandBuffer) {
+    vkResetCommandPool(device, commandPool, 0);
 
     VkCommandBufferBeginInfo beginInfo{};
     beginInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     beginInfo.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
-    vkBeginCommandBuffer(mCommandBuffer, &beginInfo);
+    vkBeginCommandBuffer(commandBuffer, &beginInfo);
 
-    func(mCommandBuffer);
+    func(commandBuffer);
 
-    vkEndCommandBuffer(mCommandBuffer);
+    vkEndCommandBuffer(commandBuffer);
 
     VkSubmitInfo submitInfo{};
     submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &mCommandBuffer;
+    submitInfo.pCommandBuffers = &commandBuffer;
 
-    vkQueueSubmit(mComputeQueue, 1, &submitInfo, VK_NULL_HANDLE);
-    vkQueueWaitIdle(mComputeQueue);
+    vkQueueSubmit(queue, 1, &submitInfo, VK_NULL_HANDLE);
+    vkQueueWaitIdle(queue);
+}
+
+void VulkanManager::SubmitCommand(std::function<void(VkCommandBuffer)> func, CommandType type) {
+    if (type == CommandType::Compute) {
+        submitCommand(func, mDevice, mQueues.compute,
+                      mQueues.computeCommandPool,
+                      mQueues.computeCommandBuffer);
+        return;
+    }
+
+    if (type == CommandType::Graphics) {
+        submitCommand(func, mDevice, mQueues.graphics,
+                      mQueues.graphicsCommandPool,
+                      mQueues.graphicsCommandBuffer);
+        return;
+    }
+
+    if (type == CommandType::Transfer) {
+        submitCommand(func, mDevice, mQueues.transfer,
+                      mQueues.transferCommandPool,
+                      mQueues.transferCommandBuffer);
+        return;
+    }
 }
 
 void VulkanManager::WaitIdle() const { vkDeviceWaitIdle(mDevice); }

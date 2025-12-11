@@ -31,6 +31,8 @@ private:
     std::vector<Plane> mPlanes;
     std::vector<Material> mMaterials;
 
+    std::shared_ptr<Image> mMeshAlbedo;
+
     std::shared_ptr<Scene> mScene;
     std::vector<MeshRenderer> mMeshes;
     std::shared_ptr<Buffer<Sphere>> mSpheresBuffer;
