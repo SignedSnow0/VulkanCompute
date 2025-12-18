@@ -7,7 +7,6 @@ struct RandomSeed {
 };
 
 struct SceneData {
-    glm::mat4 modelMatrix;
     uint32_t numFrames;
 };
 

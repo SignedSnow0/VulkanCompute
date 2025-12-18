@@ -4,6 +4,9 @@
 #include <time.h>
 #include <imgui.h>
 
+#define GLM_ENABLE_EXPERIMENTAL
+#include <glm/gtx/quaternion.hpp>
+
 RayTracerApp::RayTracerApp()
     : VulkanComputeApp(1920, 1080, "Vulkan Ray Tracer", 1) {
     std::random_device rd;
@@ -23,7 +26,12 @@ RayTracerApp::RayTracerApp()
     mMeshAlbedo = std::make_shared<Image>(
         mVulkanManager, "assets/models/viking_room/viking_room.png");
 
-    mScene = AssetManager::LoadScene("assets/models/viking_room/viking_room.obj");
+    glm::vec3 translation = glm::vec3(0, -0.5f, -0.5f);
+    glm::vec3 rotation = glm::vec3(-90, -90, 0);
+    glm::vec3 scale = glm::vec3(0.4f);
+
+    glm::mat4 modelMatrix = glm::translate(glm::mat4(1.0f), translation) * glm::toMat4(glm::quat{ glm::radians(rotation) }) * glm::scale(glm::mat4(1.0f), scale);
+    mScene = AssetManager::LoadScene("assets/models/viking_room/viking_room.obj", modelMatrix);
     for (auto& mesh : mScene->GetMeshes()) {
         mMeshes.push_back(MeshRenderer{ mVulkanManager, mesh });
     }
@@ -41,7 +49,7 @@ void RayTracerApp::OnStart() {
     Material material;
     material.color = { 1, 1, 1 };
     material.emission_color = { 0, 0, 0, 0 };
-    material.metalness = 1;
+    material.metalness = 0;
     mMaterials.push_back(material);
 
     sphere.position = { 1, 0, -2 };
@@ -85,7 +93,6 @@ void RayTracerApp::OnStart() {
 
 void RayTracerApp::OnUpdate(float dt) {
     static RandomSeed seed;
-    static glm::mat4 modelMatrix;
     static SceneData scene_data{ 0 }; //inizializzo il valore del frame a 0
     static Camera camera{ glm::vec3{0}, glm::vec3{0,0,-1} };
     static constexpr glm::vec3 up = glm::vec3(0, 1, 0);
@@ -198,13 +205,9 @@ void RayTracerApp::OnUpdate(float dt) {
 
     seed.seed = mRandomDistribution(mRandomGenerator);
     mSeed->UpdateData(seed); // carico i dati che mi sono creata sulla gpu
-                             // attraverso il buffer
-    modelMatrix = glm::translate(glm::mat4(1.0f), glm::vec3(0, 0, -0.5f));
-    modelMatrix =
-        glm::rotate(modelMatrix, -glm::half_pi<float>(), glm::vec3(1, 0, 0));
-    modelMatrix = glm::scale(modelMatrix, glm::vec3(0.1f));
+    // attraverso il buffer
+
     scene_data.numFrames++; // aggiungo un frame
-    scene_data.modelMatrix = modelMatrix;
     mSceneData->UpdateData(scene_data);
 
     mCamera->UpdateData(camera);
@@ -245,7 +248,10 @@ void RayTracerApp::OnRender(float dt,
                         commandBuffer->CurrentBufferIndex());
 
     mShader->BindBuffer(*mMaterialsBuffer, "material_buffer",
-                        commandBuffer->CurrentBufferIndex());
+        commandBuffer->CurrentBufferIndex());
+
+    mShader->BindImage(*mMeshAlbedo, "albedo",
+                       commandBuffer->CurrentBufferIndex(), false);
 
     mPipeline->Dispatch(
         commandBuffer, (mSurface->Extent().width + 15) / 16,

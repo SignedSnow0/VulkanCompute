@@ -55,7 +55,6 @@ layout(binding = 1) uniform RandomSeed {
 } random_seed;
 
 layout (binding = 2) uniform SceneData {
-    mat4 modelMatrix;
     uint numFrames;
 } scene_data;
 
@@ -84,6 +83,8 @@ layout (binding = 8) readonly buffer Materials {
     Material materials[];
 } material_buffer;
 
+layout (binding = 9) uniform sampler2D albedo;
+
 AABB computeAABB() {
     AABB aabb;
     aabb.min = vec3(MAX_FLOAT);
@@ -104,8 +105,8 @@ bool intersectAABB(Ray ray,AABB aabb) {
     vec3 t0s = (aabb.min - ray.origin) * invDir;
     vec3 t1s = (aabb.max - ray.origin) * invDir;
     
-    vec3 tsmaller = min(t0s,t1s);
-    vec3 tbigger = max(t0s,t1s);
+    vec3 tsmaller = min(t0s, t1s);
+    vec3 tbigger = max(t0s, t1s);
     
     float tmin = max(max(tsmaller.x, tsmaller.y), tsmaller.z);
     float tmax = min(min(tbigger.x, tbigger.y), tbigger.z);
@@ -190,7 +191,8 @@ bool intersectTriangle(Ray ray, vec3 p0, vec3 p1, vec3 p2, out RayHit hit) {
     return false;
 }
 
-bool intersectMesh(Ray ray, int materialIndex, out RayHit hit) {
+bool intersectMesh(Ray ray, int materialIndex, out RayHit hit, out vec3 albedoColor) {
+    albedoColor = vec3(1, 1, 1);
     AABB aabb = computeAABB();
     if (!intersectAABB(ray, aabb)) {
         return false;
@@ -208,15 +210,22 @@ bool intersectMesh(Ray ray, int materialIndex, out RayHit hit) {
         vec3 p1 = vertex_buffer.vertices[index1].position;
         vec3 p2 = vertex_buffer.vertices[index2].position;
 
-        p0 = (scene_data.modelMatrix * vec4(p0, 1)).xyz;
-        p1 = (scene_data.modelMatrix * vec4(p1, 1)).xyz;
-        p2 = (scene_data.modelMatrix * vec4(p2, 1)).xyz;
-
         RayHit current_hit;
         if (intersectTriangle(ray, p0, p1, p2, current_hit) && current_hit.distance < hit.distance) {
             hit = current_hit;
             hit.materialIndex = materialIndex;
             hit_something = true;
+
+            vec3 uv0 = vec3(vertex_buffer.vertices[index0].uv, 1.0);
+            vec3 uv1 = vec3(vertex_buffer.vertices[index1].uv, 1.0);
+            vec3 uv2 = vec3(vertex_buffer.vertices[index2].uv, 1.0);
+            
+            vec3 uv = baricentricCoordinates(hit.position, uv0, uv1, uv2);
+            vec2 texCoords = uv.x * vertex_buffer.vertices[index0].uv + 
+                            uv.y * vertex_buffer.vertices[index1].uv + 
+                            uv.z * vertex_buffer.vertices[index2].uv;
+
+            //albedoColor = texture(albedo, texCoords).rgb;
         }
     }
 
@@ -272,7 +281,7 @@ bool intersectPlane(Ray ray, Plane plane, out RayHit hit) {
     return false;
 }
 
-bool closestHit(Ray ray, out RayHit hit) {
+bool closestHit(Ray ray, out RayHit hit, out vec3 albedoColor) {
     hit.distance = MAX_FLOAT;
     bool hit_something = false;
     RayHit current_hit;
@@ -289,8 +298,8 @@ bool closestHit(Ray ray, out RayHit hit) {
         }
     }
     //TODO: impostare materiale per mesh
-    if (intersectMesh(ray, 0, current_hit) && current_hit.distance < hit.distance) {
-        hit = current_hit; //se prendo qualcosa ed è più vicino lo sovrascrivo 
+    if (intersectMesh(ray, 0, current_hit, albedoColor) && current_hit.distance < hit.distance) {
+        hit = current_hit; //se prendo qualcosa ed è più vicino lo sovrascrivo
         hit_something = true;
     }
     return hit_something;
@@ -304,8 +313,9 @@ vec3 trace() {
 
     Ray ray = rayGen();
     RayHit hit;
+    vec3 albedoColor = vec3(1, 1, 1);
     for (int i = 0; i < MAX_BOUNCES; i++) {
-        if (closestHit(ray, hit)) {
+        if (closestHit(ray, hit, albedoColor)) {
             //creo un nuovo raggio che parte dalla sfera colpita
             ray.origin = hit.position + EPSILON * hit.normal; //per risolvere problema dovuto a errore di precisione del float (eventualmente da aggiungere)
 
@@ -317,7 +327,7 @@ vec3 trace() {
 
             vec3 emittedLight = hitMaterial.emission_color * hitMaterial.emission_strength;
             result += emittedLight * ray_color;
-            ray_color *= (hitMaterial.color * dot(hit.normal, ray.direction));
+            ray_color *= (hitMaterial.color * albedoColor * dot(hit.normal, ray.direction));
         } else {
             result += vec3(0.5, 0.7, 1) * ray_color;
             break;

@@ -63,7 +63,7 @@ private:
 
 class AssetManager {
 public:
-    static std::shared_ptr<Scene> LoadScene(const std::string &filepath);
+    static std::shared_ptr<Scene> LoadScene(const std::string &filepath, const glm::mat4& modelMatrix = glm::mat4(1.0f));
 
 private:
 };

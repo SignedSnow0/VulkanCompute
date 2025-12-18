@@ -40,9 +40,41 @@ VkImageView createImageView(VkDevice device, VkImage image) {
 }
 
 VkImage createImageToDeviceMemory(const std::shared_ptr<VulkanManager> &vulkanManager, VkBuffer buffer, VkImageLayout layout, VkExtent2D extent) {
-    VkImage image = createImage(vulkanManager->Device(), extent, VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT);
+    VkImageCreateInfo createInfo{};
+    createInfo.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    createInfo.imageType = VK_IMAGE_TYPE_2D;
+    createInfo.extent = { extent.width, extent.height, 1 };
+    createInfo.mipLevels = 1;
+    createInfo.arrayLayers = 1;
+    createInfo.format = VK_FORMAT_R8G8B8A8_SRGB;
+    createInfo.tiling = VK_IMAGE_TILING_OPTIMAL;
+    createInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    createInfo.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+    createInfo.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    createInfo.samples = VK_SAMPLE_COUNT_1_BIT;
 
+    VkImage image;
+    VK_CHECK(vkCreateImage(vulkanManager->Device(), &createInfo, nullptr, &image));
+
+    VkMemoryRequirements memRequirements;
+    vkGetImageMemoryRequirements(vulkanManager->Device(), image, &memRequirements);
+
+    VkMemoryAllocateInfo allocInfo{};
+    allocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    allocInfo.allocationSize = memRequirements.size;
+    allocInfo.memoryTypeIndex =
+        findMemoryType(vulkanManager->PhysicalDevice(),
+            memRequirements.memoryTypeBits,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+
+    VkDeviceMemory imageMemory;
+    VK_CHECK(vkAllocateMemory(vulkanManager->Device(), &allocInfo, nullptr,
+        &imageMemory));
+
+    VK_CHECK(vkBindImageMemory(vulkanManager->Device(), image, imageMemory, 0));
+    
     vulkanManager->SubmitCommand([&](VkCommandBuffer commandBuffer) {
+
         if (!changeLayout(commandBuffer, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, image)) {
             return;
         }
@@ -95,7 +127,7 @@ Image::Image(const std::shared_ptr<VulkanManager> &vulkanManager, const std::str
     int width, height, channels;
     stbi_uc* pixels = stbi_load(file.c_str(), &width, &height, &channels, STBI_rgb_alpha);
     if (!pixels) {
-        throw std::runtime_error("Failed to load texture image!");
+        LOG_ERROR("Failed to load texture image: {}", file);
     }
 
     mExtent = { static_cast<uint32_t>(width), static_cast<uint32_t>(height) };
@@ -103,7 +135,7 @@ Image::Image(const std::shared_ptr<VulkanManager> &vulkanManager, const std::str
 
     VkBuffer stagingBuffer;
     VkDeviceMemory stagingBufferMemory;
-    VkDeviceSize imageSize = mExtent.width * mExtent.height * channels;
+    VkDeviceSize imageSize = mExtent.width * mExtent.height * 4;
 
     createBuffer(vulkanManager, imageSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                  VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,

@@ -298,7 +298,7 @@ VkPipelineShaderStageCreateInfo Shader::CreateShaderStageInfo() const {
 }
 
 void Shader::BindImage(const Image &image, uint32_t binding,
-                       uint32_t frameIndex) {
+                       uint32_t frameIndex, bool isStorage) {
     VkDescriptorImageInfo imageInfo = {};
     imageInfo.imageLayout = image.Layout();
     imageInfo.imageView = image.ImageView();
@@ -309,7 +309,8 @@ void Shader::BindImage(const Image &image, uint32_t binding,
     descriptorWrite.dstSet = mDescriptorSets[frameIndex];
     descriptorWrite.dstBinding = binding;
     descriptorWrite.dstArrayElement = 0;
-    descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
+    descriptorWrite.descriptorType =
+        isStorage ? VK_DESCRIPTOR_TYPE_STORAGE_IMAGE : VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
     descriptorWrite.descriptorCount = 1;
     descriptorWrite.pImageInfo = &imageInfo;
 

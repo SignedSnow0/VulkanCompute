@@ -97,9 +97,9 @@ public:
         BindUniformBuffer(uniformBuffer, it->second, frameIndex);
     }
 
-    void BindImage(const Image &image, uint32_t binding, uint32_t frameIndex);
+    void BindImage(const Image &image, uint32_t binding, uint32_t frameIndex, bool isStorage = true);
     void BindImage(const Image &image, const std::string &name,
-                   uint32_t frameIndex) {
+                   uint32_t frameIndex, bool isStorage = true) {
         auto it = mBindingMap.find(name);
         if (it == mBindingMap.end()) {
             LOG_WARNING("Failed to bind image: no binding found for name '{}'",
@@ -107,7 +107,7 @@ public:
             return;
         }
 
-        BindImage(image, it->second, frameIndex);
+        BindImage(image, it->second, frameIndex, isStorage);
     }
 
     void BindSurfaceAsImage(const std::shared_ptr<Surface> &surface,

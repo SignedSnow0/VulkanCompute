@@ -6,7 +6,7 @@
 
 #include "Core/Logger.h"
 
-std::shared_ptr<Mesh> processMesh(const aiScene *scene, const aiMesh *mesh) {
+std::shared_ptr<Mesh> processMesh(const aiScene *scene, const aiMesh *mesh, const glm::mat4& modelMatrix) {
     std::vector<Vertex> vertices;
     std::vector<uint32_t> indices;
 
@@ -20,10 +20,11 @@ std::shared_ptr<Mesh> processMesh(const aiScene *scene, const aiMesh *mesh) {
         Vertex vertex{};
 
         vertex.position = glm::vec3(mesh->mVertices[i].x, mesh->mVertices[i].y,
-                                    mesh->mVertices[i].z);
+            mesh->mVertices[i].z);
 
-        vertex.normal = glm::vec3(mesh->mNormals[i].x, mesh->mNormals[i].y,
-                                  mesh->mNormals[i].z);
+        vertex.position = glm::vec3(modelMatrix * glm::vec4(vertex.position, 1.0f));
+        vertex.normal = glm::vec3(modelMatrix * glm::vec4(mesh->mNormals[i].x, mesh->mNormals[i].y,
+                                  mesh->mNormals[i].z, 0.0f));
 
         if (mesh->mTextureCoords[0]) {
             vertex.uv = glm::vec2(mesh->mTextureCoords[0][i].x,
@@ -46,15 +47,15 @@ std::shared_ptr<Mesh> processMesh(const aiScene *scene, const aiMesh *mesh) {
 }
 
 void processNode(const aiScene *scene, const aiNode *node,
-                 std::shared_ptr<Scene> &outScene) {
+                 std::shared_ptr<Scene> &outScene, const glm::mat4& modelMatrix) {
     for (uint32_t i = 0; i < node->mNumMeshes; i++) {
         aiMesh *mesh = scene->mMeshes[node->mMeshes[i]];
-        auto processedMesh = processMesh(scene, mesh);
+        auto processedMesh = processMesh(scene, mesh, modelMatrix);
         outScene->AddMesh(processedMesh);
     }
 
     for (uint32_t i = 0; i < node->mNumChildren; i++) {
-        processNode(scene, node->mChildren[i], outScene);
+        processNode(scene, node->mChildren[i], outScene, modelMatrix);
     }
 }
 
@@ -75,7 +76,7 @@ MeshRenderer::MeshRenderer(const std::shared_ptr<VulkanManager> &vulkanManager,
 Mesh::Mesh(std::vector<Vertex> vertices, std::vector<uint32_t> indices)
     : mVertices(std::move(vertices)), mIndices(std::move(indices)) {}
 
-std::shared_ptr<Scene> AssetManager::LoadScene(const std::string &filepath) {
+std::shared_ptr<Scene> AssetManager::LoadScene(const std::string &filepath, const glm::mat4& modelMatrix) {
     Assimp::Importer importer;
 
     const aiScene *scene = importer.ReadFile(
@@ -92,7 +93,7 @@ std::shared_ptr<Scene> AssetManager::LoadScene(const std::string &filepath) {
 
     for (uint32_t i = 0; i < scene->mNumMeshes; i++) {
         aiMesh *mesh = scene->mMeshes[i];
-        auto processedMesh = processMesh(scene, mesh);
+        auto processedMesh = processMesh(scene, mesh, modelMatrix);
         newScene->AddMesh(processedMesh);
     }
 
