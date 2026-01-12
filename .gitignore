@@ -1,7 +1,3 @@
-bin/
-build/
-out/
 .vscode/
-.vs/
-CMakeSettings.json
-vulkan-app.log
+bin/
+*.ppm
