@@ -12,73 +12,59 @@ RayTracerApp::RayTracerApp()
     std::random_device rd;
     mRandomGenerator = std::mt19937(rd());
     mRandomDistribution = std::uniform_int_distribution<uint32_t>();
+
     mShader = std::shared_ptr<Shader>(
         Shader::Create(mVulkanManager, "assets/shaders/RayTracer.comp",
                        ShaderStage::Compute, mSurface->ImageCount()));
     mPipeline = std::make_shared<ComputePipeline>(mVulkanManager, mShader);
-    mSeed = std::make_shared<UniformBuffer<RandomSeed>>(
-        mVulkanManager); // inizializzo il buffer
+
     mSceneData = std::make_shared<UniformBuffer<SceneData>>(
         mVulkanManager);
     mCamera = std::make_shared<UniformBuffer<Camera>>(
         mVulkanManager);
-
-    mMeshAlbedo = std::make_shared<Image>(
-        mVulkanManager, "assets/models/viking_room/viking_room.png");
-
-    glm::vec3 translation = glm::vec3(0, -0.5f, -0.5f);
-    glm::vec3 rotation = glm::vec3(-90, -90, 0);
-    glm::vec3 scale = glm::vec3(0.4f);
-
-    glm::mat4 modelMatrix = glm::translate(glm::mat4(1.0f), translation) * glm::toMat4(glm::quat{ glm::radians(rotation) }) * glm::scale(glm::mat4(1.0f), scale);
-    mScene = AssetManager::LoadScene("assets/models/viking_room/viking_room.obj", modelMatrix);
-    for (auto& mesh : mScene->GetMeshes()) {
-        mMeshes.push_back(MeshRenderer{ mVulkanManager, mesh });
-    }
 }
 
 RayTracerApp::~RayTracerApp() = default;
 
 void RayTracerApp::OnStart() {
-    Sphere sphere;
-    sphere.position = { -1, 0, -2 };
-    sphere.radius = 1;
-    sphere.materialIndex = 0;
-    mSpheres.push_back(sphere);
+    glm::vec3 translation = glm::vec3(0, 0, 0);
+    glm::vec3 rotation = glm::vec3(0, 90, 0);
+    glm::vec3 scale = glm::vec3(1);
+
+    glm::mat4 modelMatrix = glm::translate(glm::mat4(1.0f), translation) * glm::toMat4(glm::quat{ glm::radians(rotation) }) * glm::scale(glm::mat4(1.0f), scale);
+    mScene = AssetManager::LoadScene("assets/models/Dragon_8k.obj", modelMatrix);
+    for (auto& mesh : mScene->GetMeshes()) {
+        mMeshes.push_back(MeshRenderer{ mVulkanManager, mesh });
+        mBvhBuilder = std::make_shared<BvhBuilder>(mesh, 8);
+        auto bvh = mBvhBuilder->Build();
+    }
 
     Material material;
-    material.color = { 1, 1, 1 };
-    material.emission_color = { 0, 0, 0, 0 };
+    material.color = { 1, .64, .22 };
+    material.emission_color = { 0, 0, 0, 0};
+    material.metalness = .4;
+    mMaterials.push_back(material);
+
+    //BuildScene();
+
+    Sphere lightSphere;
+    lightSphere.position = { -4, 5, -10 };
+    lightSphere.radius = 5;
+    lightSphere.materialIndex = mMaterials.size();
+    mSpheres.push_back(lightSphere);
+
+    material.color = { 0, 0, 0 };
+    material.emission_color = { 1, 1, 1, 1 };
     material.metalness = 0;
     mMaterials.push_back(material);
 
-    sphere.position = { 1, 0, -2 };
-    sphere.radius = 1;
-    sphere.materialIndex = 1;
-    mSpheres.push_back(sphere);
+    Plane groundPlane;
+    groundPlane.position = { 0, -1, 0 };
+    groundPlane.normal = { 0, 1, 0 };
+    groundPlane.materialIndex = mMaterials.size();
+    mPlanes.push_back(groundPlane);
 
-    material.color = {1, 1, 1};
-    material.emission_color = {0, 0, 0, 0};
-    material.metalness = 1;
-    mMaterials.push_back(material);
-
-    sphere.position = { -4, 5, -10 };
-    sphere.radius = 5;
-    sphere.materialIndex = 2;
-    mSpheres.push_back(sphere);
-
-    material.color = {0, 0, 0};
-    material.emission_color = {1, 1, 1, 1};
-    material.metalness = 0;
-    mMaterials.push_back(material);
-
-    Plane plane;
-    plane.position = { 0, -1, 0 };
-    plane.normal = { 0, 1, 0 };
-    plane.materialIndex = 3;
-    mPlanes.push_back(plane);
-
-    material.color = {0, 0, 1};
+    material.color = { .45, .67, .44 };
     material.emission_color = {0, 0, 0, 0};
     material.metalness = 0;
     mMaterials.push_back(material);
@@ -89,22 +75,89 @@ void RayTracerApp::OnStart() {
         mVulkanManager, mPlanes.data(), sizeof(Plane) * mPlanes.size(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
     mMaterialsBuffer = std::make_shared<Buffer<Material>>(
         mVulkanManager, mMaterials.data(), sizeof(Material) * mMaterials.size(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+
 }
 
 void RayTracerApp::OnUpdate(float dt) {
-    static RandomSeed seed;
-    static SceneData scene_data{ 0 }; //inizializzo il valore del frame a 0
+    static SceneData sceneData{ 0 };
     static Camera camera{ glm::vec3{0}, glm::vec3{0,0,-1} };
-    static constexpr glm::vec3 up = glm::vec3(0, 1, 0);
-    glm::vec3 right = glm::normalize(glm::cross(camera.forward, up));
 
+    sceneData.seed = mRandomDistribution(mRandomGenerator);
+    sceneData.maxBounces = 8;
+    RenderGui(camera, sceneData, dt);
+
+    sceneData.numFrames++;
+    mSceneData->UpdateData(sceneData);
+
+    mCamera->UpdateData(camera);
+}
+
+
+void RayTracerApp::OnRender(float dt,
+    std::shared_ptr<CommandBuffer> commandBuffer) {
+    BindUniformBuffers(commandBuffer);
+    BindStorageBuffers(commandBuffer);
+
+    mShader->BindSurfaceAsImage(
+        mSurface, "gWindow",
+        commandBuffer->CurrentBufferIndex());
+
+    if (mShowGui) {
+        return;
+    }
+
+    mPipeline->Dispatch(
+        commandBuffer, (mSurface->Extent().width + 7) / 8,
+        (mSurface->Extent().height + 7) / 8,
+        1);
+}
+
+void RayTracerApp::OnStop() {}
+
+void RayTracerApp::BuildScene() {
+    Sphere sphere;
+    sphere.position = { -1, 0, -2 };
+    sphere.radius = 1;
+    sphere.materialIndex = mMaterials.size();
+    mSpheres.push_back(sphere);
+
+    Material material;
+    material.color = { .55, .89, 1};
+    material.emission_color = { 0, 0, 0, 0 };
+    material.metalness = .4;
+    mMaterials.push_back(material);
+
+    sphere.position = { 1, 0, -2 };
+    sphere.radius = 1;
+    sphere.materialIndex = mMaterials.size();
+    mSpheres.push_back(sphere);
+
+    material.color = { 1, .34, .34 };
+    material.emission_color = { 0, 0, 0, 0 };
+    material.metalness = .95;
+    mMaterials.push_back(material);
+
+    sphere.position = { -4, 5, -10 };
+    sphere.radius = 5;
+    sphere.materialIndex = mMaterials.size();
+    mSpheres.push_back(sphere);
+
+    material.color = {0, 0, 0};
+    material.emission_color = {1, 1, 1, 1};
+    material.metalness = 0;
+    mMaterials.push_back(material);
+}
+
+void RayTracerApp::RenderGui(Camera& camera, SceneData& scene_data, float dt) {
     bool oldGuiState = mShowGui;
 
     if (!mShowGui) {
+        static constexpr glm::vec3 up = glm::vec3(0, 1, 0);
+        glm::vec3 right = glm::normalize(glm::cross(camera.forward, up));
+        
         if (mWindow.IsKeyDown(GLFW_KEY_UP) || mWindow.IsKeyDown(GLFW_KEY_W)) {
             camera.position += camera.forward * dt;
-            scene_data.numFrames = 0; // resetto il numero di frame se cambio
-            // posizione
+            scene_data.numFrames = 0;
         }
         if (mWindow.IsKeyDown(GLFW_KEY_DOWN) || mWindow.IsKeyDown(GLFW_KEY_S)) {
             camera.position -= camera.forward * dt;
@@ -194,69 +247,45 @@ void RayTracerApp::OnUpdate(float dt) {
     }
     if (oldGuiState && !mShowGui) {
         scene_data.numFrames = 0;
+
         mSpheresBuffer = std::make_shared<Buffer<Sphere>>(
             mVulkanManager, mSpheres.data(), sizeof(Sphere) * mSpheres.size(),
             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-
         mPlanesBuffer = std::make_shared<Buffer<Plane>>(
             mVulkanManager, mPlanes.data(), sizeof(Plane) * mPlanes.size(),
             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+        mSpheresBuffer = std::make_shared<Buffer<Sphere>>(
+            mVulkanManager, mSpheres.data(), sizeof(Sphere) * mSpheres.size(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+        mPlanesBuffer = std::make_shared<Buffer<Plane>>(
+            mVulkanManager, mPlanes.data(), sizeof(Plane) * mPlanes.size(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
+        mMaterialsBuffer = std::make_shared<Buffer<Material>>(
+            mVulkanManager, mMaterials.data(), sizeof(Material) * mMaterials.size(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
     }
-
-    seed.seed = mRandomDistribution(mRandomGenerator);
-    mSeed->UpdateData(seed); // carico i dati che mi sono creata sulla gpu
-    // attraverso il buffer
-
-    scene_data.numFrames++; // aggiungo un frame
-    mSceneData->UpdateData(scene_data);
-
-    mCamera->UpdateData(camera);
 }
 
-
-void RayTracerApp::OnRender(float dt,
-                            std::shared_ptr<CommandBuffer> commandBuffer) {
-    mShader->BindSurfaceAsImage(
-        mSurface, "window",
-        commandBuffer->CurrentBufferIndex()); // memcopy host to device di
-                                              // window (passaggio dati)
+void RayTracerApp::BindUniformBuffers(const std::shared_ptr<CommandBuffer>& commandBuffer) {
     mShader->BindUniformBuffer(
-        *mSeed, "random_seed",
+        *mSceneData, "gSceneData",
         commandBuffer
-            ->CurrentBufferIndex()); // dico al shader che il valore della
-                                     // variabile random_seed lo devo prendere
-                                     // dal buffer indicato
-    mShader->BindUniformBuffer(
-        *mSceneData, "scene_data",
-        commandBuffer
-            ->CurrentBufferIndex()); // dico al shader che il valore della
-                                     // variabile scene_data lo devo prendere
-                                     // dal buffer indicato
+            ->CurrentBufferIndex());
 
     mShader->BindUniformBuffer(
-        *mCamera, "camera", commandBuffer->CurrentBufferIndex());
+        *mCamera, "gCamera", commandBuffer->CurrentBufferIndex());
+}
 
-    mShader->BindBuffer(*mMeshes.at(0).GetVertexBuffer(), "vertex_buffer",
-                        commandBuffer->CurrentBufferIndex());
-    mShader->BindBuffer(*mMeshes.at(0).GetIndexBuffer(), "index_buffer",
-                        commandBuffer->CurrentBufferIndex());
-    
-    mShader->BindBuffer(*mSpheresBuffer, "sphere_buffer",
-                        commandBuffer->CurrentBufferIndex());
-    
-    mShader->BindBuffer(*mPlanesBuffer, "plane_buffer",
-                        commandBuffer->CurrentBufferIndex());
-
-    mShader->BindBuffer(*mMaterialsBuffer, "material_buffer",
+void RayTracerApp::BindStorageBuffers(const std::shared_ptr<CommandBuffer>& commandBuffer) {
+    mShader->BindBuffer(*mMeshes.at(0).GetVertexBuffer(), "gVertexBuffer",
         commandBuffer->CurrentBufferIndex());
+    
+    mShader->BindBuffer(*mMeshes.at(0).GetIndexBuffer(), "gIndexBuffer",
+                        commandBuffer->CurrentBufferIndex());
+    
+    mShader->BindBuffer(*mSpheresBuffer, "gSphereBuffer",
+                        commandBuffer->CurrentBufferIndex());
+    
+    mShader->BindBuffer(*mPlanesBuffer, "gPlaneBuffer",
+                        commandBuffer->CurrentBufferIndex());
 
-    mShader->BindImage(*mMeshAlbedo, "albedo",
-                       commandBuffer->CurrentBufferIndex(), false);
-
-    mPipeline->Dispatch(
-        commandBuffer, (mSurface->Extent().width + 15) / 16,
-        (mSurface->Extent().height + 7) / 8,
-        1); // chiamo il kernel e definisco le dimensioni dei blocchi
+    mShader->BindBuffer(*mMaterialsBuffer, "gMaterialBuffer",
+        commandBuffer->CurrentBufferIndex());
 }
-
-void RayTracerApp::OnStop() {}
