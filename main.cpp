@@ -11,7 +11,7 @@ constexpr int width = 1920;
 constexpr int height = 1080;
 
 Ray rayGen(Vec2 uv) { 
-    Vec3 origin(0.0f, 1.0f, 5.0f);
+    Vec3 origin(0.0f, 1.0f, 2.0f);
     float aspectRatio = static_cast<float>(width) / static_cast<float>(height); 
     Vec2 tmp = Vec2(((uv.getX() / width) * 2.0f - 1.0f) * aspectRatio, ((uv.getY() / height) * 2.0f - 1.0f) * -1.0f);
     Vec3 direction = Vec3(tmp.getX(), tmp.getY(), -1.0f).normalize();
