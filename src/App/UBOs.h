@@ -2,12 +2,10 @@
 #include <cstdint>
 #include <glm/glm.hpp>
 
-struct RandomSeed {
-    uint32_t seed;
-};
-
 struct SceneData {
     uint32_t numFrames;
+    uint32_t seed;
+    uint32_t maxBounces;
 };
 
 struct Camera {
@@ -31,4 +29,9 @@ struct Plane {
     alignas(16) glm::vec3 position;
     alignas(16) glm::vec3 normal;
     uint32_t materialIndex;
+};
+
+struct AABB {
+    alignas(16) glm::vec3 min;
+    alignas(16) glm::vec3 max;
 };

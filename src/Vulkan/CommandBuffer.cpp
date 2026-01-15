@@ -39,6 +39,8 @@ CommandBuffer::CommandBuffer(
 }
 
 CommandBuffer::~CommandBuffer() {
+    vkFreeCommandBuffers(mVulkanManager->Device(), mPool, mCommandBuffers.size(), mCommandBuffers.data());
+
     vkDestroyCommandPool(mVulkanManager->Device(), mPool, nullptr);
 }
 

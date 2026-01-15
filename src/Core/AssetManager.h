@@ -19,6 +19,13 @@ class Mesh {
 public:
     Mesh(std::vector<Vertex> vertices, std::vector<uint32_t> indices);
 
+    [[nodiscard]] inline const std::vector<Vertex> &GetVertices() const {
+        return mVertices;
+    }
+    [[nodiscard]] inline const std::vector<uint32_t> &GetIndices() const {
+        return mIndices;
+    }
+
 private:
     std::vector<Vertex> mVertices;
     std::vector<uint32_t> mIndices;
