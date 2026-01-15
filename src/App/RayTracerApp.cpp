@@ -27,9 +27,9 @@ RayTracerApp::RayTracerApp()
 RayTracerApp::~RayTracerApp() = default;
 
 void RayTracerApp::OnStart() {
-    glm::vec3 translation = glm::vec3(0, 0, 0);
+    glm::vec3 translation = glm::vec3(0, -.5, -.5);
     glm::vec3 rotation = glm::vec3(-90, -90, 0);
-    glm::vec3 scale = glm::vec3(0.4f);
+    glm::vec3 scale = glm::vec3(0.4);
 
     glm::mat4 modelMatrix = glm::translate(glm::mat4(1.0f), translation) * glm::toMat4(glm::quat{ glm::radians(rotation) }) * glm::scale(glm::mat4(1.0f), scale);
     mScene = AssetManager::LoadScene("assets/models/viking_room/viking_room.obj", modelMatrix);
@@ -39,12 +39,12 @@ void RayTracerApp::OnStart() {
     }
 
     Material material;
-    material.color = { .91, .75, .23 };
-    material.emission_color = { 0, 0, 0, 0 };
-    material.metalness = 0;
+    material.color = { 1, .64, .22 };
+    material.emission_color = { 0, 0, 0, 0};
+    material.metalness = .4;
     mMaterials.push_back(material);
 
-    //BuildScene();
+    BuildScene();
 
     Sphere lightSphere;
     lightSphere.position = { -4, 5, -10 };
@@ -53,7 +53,7 @@ void RayTracerApp::OnStart() {
     mSpheres.push_back(lightSphere);
 
     material.color = { 0, 0, 0 };
-    material.emission_color = {1, 1, 1, 1};
+    material.emission_color = { 1, 1, 1, 1 };
     material.metalness = 0;
     mMaterials.push_back(material);
 
@@ -63,7 +63,7 @@ void RayTracerApp::OnStart() {
     groundPlane.materialIndex = mMaterials.size();
     mPlanes.push_back(groundPlane);
 
-    material.color = {0, 0, 1};
+    material.color = { .45, .67, .44 };
     material.emission_color = {0, 0, 0, 0};
     material.metalness = 0;
     mMaterials.push_back(material);
@@ -79,15 +79,15 @@ void RayTracerApp::OnStart() {
 }
 
 void RayTracerApp::OnUpdate(float dt) {
-    static SceneData scene_data{ 0 };
+    static SceneData sceneData{ 0 };
     static Camera camera{ glm::vec3{0}, glm::vec3{0,0,-1} };
 
-    scene_data.seed = mRandomDistribution(mRandomGenerator);
-    scene_data.maxBounces = 8;
-    RenderGui(camera, scene_data, dt);
+    sceneData.seed = mRandomDistribution(mRandomGenerator);
+    sceneData.maxBounces = 8;
+    RenderGui(camera, sceneData, dt);
 
-    scene_data.numFrames++;
-    mSceneData->UpdateData(scene_data);
+    sceneData.numFrames++;
+    mSceneData->UpdateData(sceneData);
 
     mCamera->UpdateData(camera);
 }
@@ -115,16 +115,16 @@ void RayTracerApp::OnRender(float dt,
 void RayTracerApp::OnStop() {}
 
 void RayTracerApp::BuildScene() {
- Sphere sphere;
+    Sphere sphere;
     sphere.position = { -1, 0, -2 };
     sphere.radius = 1;
     sphere.materialIndex = mMaterials.size();
     mSpheres.push_back(sphere);
 
     Material material;
-    material.color = { 1, 1, 1 };
+    material.color = { .55, .89, 1};
     material.emission_color = { 0, 0, 0, 0 };
-    material.metalness = 0;
+    material.metalness = .4;
     mMaterials.push_back(material);
 
     sphere.position = { 1, 0, -2 };
@@ -132,9 +132,9 @@ void RayTracerApp::BuildScene() {
     sphere.materialIndex = mMaterials.size();
     mSpheres.push_back(sphere);
 
-    material.color = {1, 1, 1};
-    material.emission_color = {0, 0, 0, 0};
-    material.metalness = 1;
+    material.color = { 1, .34, .34 };
+    material.emission_color = { 0, 0, 0, 0 };
+    material.metalness = .95;
     mMaterials.push_back(material);
 
     sphere.position = { -4, 5, -10 };
