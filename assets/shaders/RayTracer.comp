@@ -3,187 +3,120 @@
 
 #include "Utils.comp"
 
-const int MAX_BOUNCES = 10;
-
 struct Ray {
-    vec3 origin;
-    vec3 direction;
+    vec3 Origin;
+    vec3 Direction;
 };
 
 struct Material {
-    vec3 color;
-    float metalness;
-    vec3 emission_color;
-    float emission_strength;
+    vec3 Color;
+    float Metalness;
+    vec3 EmissionColor;
+    float EmissionStrength;
 };
 
 struct Sphere {
-    vec3 position;
-    float radius;
-    uint materialIndex;
+    vec3 Position;
+    float Radius;
+    uint MaterialIndex;
 };
 
 struct RayHit {
-    vec3 position;
-    vec3 normal;
-    float distance;
-    uint materialIndex;
+    vec3 Position;
+    vec3 Normal;
+    float Distance;
+    uint MaterialIndex;
 };
 
 struct Plane {
-    vec3 position;
-    vec3 normal;
-    uint materialIndex;
+    vec3 Position;
+    vec3 Normal;
+    uint MaterialIndex;
 };
 
 struct Vertex {
-    vec3 position;
-    vec3 normal;
-    vec2 uv;
+    vec3 Position;
+    vec3 Normal;
+    vec2 UV;
 };
 
-struct AABB {
-    vec3 min;
-    vec3 max;
-};
+layout(rgba8, binding = 0) uniform image2D gWindow;
 
-layout(rgba8, binding = 0) uniform image2D window; //finestra finale di output
+layout (binding = 1) uniform SceneData {
+    uint NumFrames;
+    uint Seed;
+    uint MaxBounces;
+} gSceneData;
 
-//uniform: dati/struttura condivisi tra tutti i thread dei blocchi
-layout(binding = 1) uniform RandomSeed {
-    uint seed;
-} random_seed;
-
-layout (binding = 2) uniform SceneData {
-    uint numFrames;
-} scene_data;
+layout (binding = 2) uniform Camera{
+    vec3 Position;
+    vec3 Forward;
+} gCamera;
 
 layout (std430, binding = 3) readonly buffer VertexBuffer {
     Vertex vertices[];
-} vertex_buffer;
+} gVertexBuffer;
 
 layout (std430, binding = 4) readonly buffer IndexBuffer {
     uint indices[];
-} index_buffer;
+} gIndexBuffer;
 
-layout (binding = 5) uniform Camera {
-    vec3 position;
-    vec3 forward;
-} camera;
-
-layout (binding = 6) readonly buffer Spheres {
+layout (binding = 5) readonly buffer Spheres {
     Sphere spheres[];
-} sphere_buffer;
+} gSphereBuffer;
 
-layout (binding = 7) readonly buffer Planes {
+layout (binding = 6) readonly buffer Planes {
     Plane planes[];
-} plane_buffer;
+} gPlaneBuffer;
 
-layout (binding = 8) readonly buffer Materials {
+layout (binding = 7) readonly buffer Materials {
     Material materials[];
-} material_buffer;
-
-layout (binding = 9) uniform sampler2D albedo;
-
-AABB computeAABB() {
-    AABB aabb;
-    aabb.min = vec3(MAX_FLOAT);
-    aabb.max = vec3(-MAX_FLOAT);
-
-    uint vertex_length = vertex_buffer.vertices.length();
-    for (uint i = 0; i < vertex_length; i++) {
-        vec3 pos = vertex_buffer.vertices[i].position;
-        aabb.min = min(aabb.min, pos);
-        aabb.max = max(aabb.max, pos);
-    }
-
-    return aabb;
-}
-
-bool intersectAABB(Ray ray,AABB aabb) {
-    vec3 invDir = 1.0 / ray.direction;
-    vec3 t0s = (aabb.min - ray.origin) * invDir;
-    vec3 t1s = (aabb.max - ray.origin) * invDir;
-    
-    vec3 tsmaller = min(t0s, t1s);
-    vec3 tbigger = max(t0s, t1s);
-    
-    float tmin = max(max(tsmaller.x, tsmaller.y), tsmaller.z);
-    float tmax = min(min(tbigger.x, tbigger.y), tbigger.z);
-    
-    return tmax >= max(tmin, 0.0);
-}
+} gMaterialBuffer;
 
 Ray rayGen() {
-    ivec2 dim_window = imageSize(window);
-    Ray ray;
+    ivec2 dimWindow = imageSize(gWindow);
+    vec3 right = normalize(cross(gCamera.Forward,UP));
 
-    // (0, 0) --------------------- (width, 0)
-    //   |                               |
-    //   |                               |
-    //   |                               |
-    // (0, height) --------------- (width, height)
     vec2 uv = gl_GlobalInvocationID.xy;
+    uv = uv / dimWindow;
+    uv = uv * 2.0 - 1.0;
+    uv.x *= float(dimWindow.x) / dimWindow.y;
+    uv.y *= -1.0;
 
-    // (0, 0) ---------------- (1, 0)
-    //   |                       |
-    //   |                       |
-    //   |                       |
-    // (0, 1) --------------- (1, 1)
-    uv = uv / dim_window; //valori tra tra 0 e 1
+    Ray ray;
+    ray.Origin = gCamera.Position;
+    ray.Direction = normalize(gCamera.Forward + uv.x * right + uv.y * UP);
 
-    // (-1, -1) ---------------- (1, -1)
-    //   |                       |
-    //   |                       |
-    //   |                       |
-    // (-1, 1) --------------- (1, 1)
-    uv = uv * 2.0 - 1.0;//valori tra -1 - 1
-    uv.x *= float(dim_window.x) / dim_window.y; //ratio dell'immagine, proporzioni corrette per il rettangolo
-
-    // (-1, 1) ---------------- (1, 1)
-    //   |                       |
-    //   |            x          |
-    //   |                       |
-    // (-1, -1) --------------- (1, -1)
-    uv.y *= -1.0; //inverto l'asse delle y (y deve crescere verso l'alto)
-
-    ray.origin = camera.position;
-
-    vec3 right = normalize(cross(camera.forward, UP));
-
-    ray.direction = normalize(camera.forward + uv.x * right + uv.y * UP);
     return ray;
 }
 
 bool intersectTriangle(Ray ray, vec3 p0, vec3 p1, vec3 p2, out RayHit hit) {
     vec3 edge1 = p1 - p0;
     vec3 edge2 = p2 - p0;
-    vec3 ray_cross_e2 = cross(ray.direction, edge2);
-    float det = dot(edge1, ray_cross_e2);
+    vec3 rayCrossE2 = cross(ray.Direction, edge2);
+    float det = dot(edge1, rayCrossE2);
 
     if (det > -EPSILON && det < EPSILON)
         return false;
 
-    float inv_det = 1.0 / det;
-    vec3 s = ray.origin - p0;
-    float u = inv_det * dot(s, ray_cross_e2);
+    float invDet = 1.0 / det;
+    vec3 s = ray.Origin - p0;
+    float u = invDet * dot(s, rayCrossE2);
 
     if ((u < 0 && abs(u) > EPSILON) || (u > 1 && abs(u-1) > EPSILON))
         return false;
 
-    vec3 s_cross_e1 = cross(s, edge1);
-    float v = inv_det * dot(ray.direction, s_cross_e1);
+    vec3 sCrossE1 = cross(s, edge1);
+    float v = invDet * dot(ray.Direction, sCrossE1);
     if ((v < 0 && abs(v) > EPSILON) || (u + v > 1 && abs(u + v - 1) > EPSILON))
         return false;
 
-    // At this stage we can compute t to find out where the intersection point is on the line.
-    float t = inv_det * dot(edge2, s_cross_e1);
-
-    if (t > EPSILON) // ray intersection
+    float t = invDet * dot(edge2, sCrossE1);
+    if (t > EPSILON)
     {
-        hit.distance = t;
-        hit.position = ray.origin + ray.direction * t;
-        hit.normal = normalize(cross(edge1, edge2));
+        hit.Distance = t;
+        hit.Position = ray.Origin + ray.Direction * t;
+        hit.Normal = normalize(cross(edge1, edge2));
 
         return true;
     }
@@ -193,87 +126,58 @@ bool intersectTriangle(Ray ray, vec3 p0, vec3 p1, vec3 p2, out RayHit hit) {
 
 bool intersectMesh(Ray ray, int materialIndex, out RayHit hit, out vec3 albedoColor) {
     albedoColor = vec3(1, 1, 1);
-    AABB aabb = computeAABB();
-    if (!intersectAABB(ray, aabb)) {
-        return false;
-    }
 
-    hit.distance = MAX_FLOAT;
-    bool hit_something = false;
+    hit.Distance = MAX_FLOAT;
+    bool hitSomething = false;
 
-    for (uint i = 0; i < index_buffer.indices.length(); ) {
-        uint index0 = index_buffer.indices[i++];//ottimizazione con indexbuffer per eliminare vertici duplicati
-        uint index1 = index_buffer.indices[i++];
-        uint index2 = index_buffer.indices[i++];
+    for (uint i = 0; i < gIndexBuffer.indices.length(); ) {
+        uint index0 = gIndexBuffer.indices[i++];//ottimizazione con indexbuffer per eliminare vertici duplicati
+        uint index1 = gIndexBuffer.indices[i++];
+        uint index2 = gIndexBuffer.indices[i++];
 
-        vec3 p0 = vertex_buffer.vertices[index0].position;
-        vec3 p1 = vertex_buffer.vertices[index1].position;
-        vec3 p2 = vertex_buffer.vertices[index2].position;
+        vec3 p0 = gVertexBuffer.vertices[index0].Position;
+        vec3 p1 = gVertexBuffer.vertices[index1].Position;
+        vec3 p2 = gVertexBuffer.vertices[index2].Position;
 
-        RayHit current_hit;
-        if (intersectTriangle(ray, p0, p1, p2, current_hit) && current_hit.distance < hit.distance) {
-            hit = current_hit;
-            hit.materialIndex = materialIndex;
-            hit_something = true;
-
-            vec3 uv0 = vec3(vertex_buffer.vertices[index0].uv, 1.0);
-            vec3 uv1 = vec3(vertex_buffer.vertices[index1].uv, 1.0);
-            vec3 uv2 = vec3(vertex_buffer.vertices[index2].uv, 1.0);
-            
-            vec3 uv = baricentricCoordinates(hit.position, uv0, uv1, uv2);
-            vec2 texCoords = uv.x * vertex_buffer.vertices[index0].uv + 
-                            uv.y * vertex_buffer.vertices[index1].uv + 
-                            uv.z * vertex_buffer.vertices[index2].uv;
-
-            //albedoColor = texture(albedo, texCoords).rgb;
+        RayHit currentHit;
+        if (intersectTriangle(ray, p0, p1, p2, currentHit) && currentHit.Distance < hit.Distance) {
+            hit = currentHit;
+            hit.MaterialIndex = materialIndex;
+            hitSomething = true;
         }
     }
 
-    return hit_something;
+    return hitSomething;
 }
 
 bool intersectSphere(Ray ray, Sphere sphere, out RayHit hit) {
-    // C = centro della sfera
-    // P = posizione (variabile indipendente)
-    // O = origine del raggio
-    // D = direzione del raggio
-    //
-    // (Cx - Px)^2 + (Cy - Py)^2 + (Cz - Pz)^2 = r^2
-    // (C - P) · (C - P) = r^2
-    // P = O + tD
-    // (C - (O + tD)) · (C - (O + tD)) = r^2
-    // t^2(D · D) - 2tD · (C - O) + (C - O) · (C - O) - r^2 = 0
-    // t^2a + tb + c = 0
-    // a = D · D
-    // b = -2D · (C - O)
-    // c = (C - O) · (C - O) - r^2
-    vec3 positionOffset = ray.origin - sphere.position;
-    float a = dot(ray.direction, ray.direction);
-    float b = 2 * dot(positionOffset, ray.direction);
-    float c = dot(positionOffset, positionOffset) - sphere.radius * sphere.radius;
+    vec3 positionOffset = ray.Origin - sphere.Position;
+    float a = dot(ray.Direction, ray.Direction);
+    float b = 2 * dot(positionOffset, ray.Direction);
+    float c = dot(positionOffset, positionOffset) - sphere.Radius * sphere.Radius;
     float discriminant = b * b - 4 * a * c;
 
     if (discriminant >= 0) {
-        hit.distance = (-b - sqrt(discriminant)) / (2 * a);
-        hit.position = ray.origin + ray.direction * hit.distance;
-        hit.normal = normalize(hit.position - sphere.position);
-        hit.materialIndex = sphere.materialIndex;
+        hit.Distance = (-b - sqrt(discriminant)) / (2 * a);
+        hit.Position = ray.Origin + ray.Direction * hit.Distance;
+        hit.Normal = normalize(hit.Position - sphere.Position);
+        hit.MaterialIndex = sphere.MaterialIndex;
 
-        return hit.distance >= 0;
+        return hit.Distance >= 0;
     }
 
     return false;
 }
 
 bool intersectPlane(Ray ray, Plane plane, out RayHit hit) {
-    float denominator = dot(plane.normal, ray.direction);
-    if (abs(denominator) > EPSILON) { //escludo i raggi paralleli al piano
-        float t = dot(plane.position - ray.origin, plane.normal) / denominator; //calcolo la distanza tra la posizione dell'origine del raggio e l'intersezione con il piano
-        if (t >= 0) { //interseca
-            hit.distance = t;
-            hit.position = ray.origin + ray.direction * hit.distance;
-            hit.normal = plane.normal;
-            hit.materialIndex = plane.materialIndex;
+    float denominator = dot(plane.Normal, ray.Direction);
+    if (abs(denominator) > EPSILON) {
+        float t = dot(plane.Position - ray.Origin, plane.Normal) / denominator;
+        if (t >= 0) {
+            hit.Distance = t;
+            hit.Position = ray.Origin + ray.Direction * hit.Distance;
+            hit.Normal = plane.Normal;
+            hit.MaterialIndex = plane.MaterialIndex;
 
             return true;
         }
@@ -282,54 +186,56 @@ bool intersectPlane(Ray ray, Plane plane, out RayHit hit) {
 }
 
 bool closestHit(Ray ray, out RayHit hit, out vec3 albedoColor) {
-    hit.distance = MAX_FLOAT;
-    bool hit_something = false;
-    RayHit current_hit;
-    for (int i = 0; i < sphere_buffer.spheres.length(); i++) {
-        if (intersectSphere(ray, sphere_buffer.spheres[i], current_hit) && current_hit.distance < hit.distance) {
-            hit = current_hit; //se prendo qualcosa ed è più vicino lo sovrascrivo 
-            hit_something = true;
+    hit.Distance = MAX_FLOAT;
+    bool hitSomething = false;
+    RayHit currentHit;
+
+    for (int i = 0; i < gSphereBuffer.spheres.length(); i++) {
+        if (intersectSphere(ray, gSphereBuffer.spheres[i], currentHit) && currentHit.Distance < hit.Distance) {
+            hit = currentHit;
+            hitSomething = true;
         }
     }
-    for (int i = 0; i < plane_buffer.planes.length(); i++) {
-        if (intersectPlane(ray, plane_buffer.planes[i], current_hit) && current_hit.distance < hit.distance) {
-            hit = current_hit; //se prendo qualcosa ed è più vicino lo sovrascrivo 
-            hit_something = true;
+
+    for (int i = 0; i < gPlaneBuffer.planes.length(); i++) {
+        if (intersectPlane(ray, gPlaneBuffer.planes[i], currentHit) && currentHit.Distance < hit.Distance) {
+            hit = currentHit;
+            hitSomething = true;
         }
     }
-    //TODO: impostare materiale per mesh
-    if (intersectMesh(ray, 0, current_hit, albedoColor) && current_hit.distance < hit.distance) {
-        hit = current_hit; //se prendo qualcosa ed è più vicino lo sovrascrivo
-        hit_something = true;
+
+    if (intersectMesh(ray, 0, currentHit, albedoColor) && currentHit.Distance < hit.Distance) {
+        hit = currentHit;
+        hitSomething = true;
     }
-    return hit_something;
+
+    return hitSomething;
 }
 
 
 vec3 trace() {
     vec3 result = vec3(0, 0, 0);
-    vec3 ray_color = vec3(1, 1, 1);
-    uint state = gl_GlobalInvocationID.x * gl_GlobalInvocationID.y * random_seed.seed; //elemento randomico
+    vec3 rayColor = vec3(1, 1, 1);
+    uint state = gl_GlobalInvocationID.x * gl_GlobalInvocationID.y * gSceneData.Seed;
 
     Ray ray = rayGen();
     RayHit hit;
     vec3 albedoColor = vec3(1, 1, 1);
-    for (int i = 0; i < MAX_BOUNCES; i++) {
+    for (int i = 0; i < gSceneData.MaxBounces; i++) {
         if (closestHit(ray, hit, albedoColor)) {
-            //creo un nuovo raggio che parte dalla sfera colpita
-            ray.origin = hit.position + EPSILON * hit.normal; //per risolvere problema dovuto a errore di precisione del float (eventualmente da aggiungere)
+            ray.Origin = hit.Position + EPSILON * hit.Normal;
 
-            Material hitMaterial = material_buffer.materials[hit.materialIndex];
+            Material hitMaterial = gMaterialBuffer.materials[hit.MaterialIndex];
 
-            vec3 diffuseDirection = randomOnHemisphere(state, hit.normal);
-            vec3 specularDirection = reflect(ray.direction, hit.normal);
-            ray.direction = mix(diffuseDirection, specularDirection, hitMaterial.metalness);
+            vec3 diffuseDirection = randomOnHemisphere(state, hit.Normal);
+            vec3 specularDirection = reflect(ray.Direction, hit.Normal);
+            ray.Direction = mix(diffuseDirection, specularDirection, hitMaterial.Metalness);
 
-            vec3 emittedLight = hitMaterial.emission_color * hitMaterial.emission_strength;
-            result += emittedLight * ray_color;
-            ray_color *= (hitMaterial.color * albedoColor * dot(hit.normal, ray.direction));
+            vec3 emittedLight = hitMaterial.EmissionColor * hitMaterial.EmissionStrength;
+            result += emittedLight * rayColor;
+            rayColor *= (hitMaterial.Color * albedoColor * dot(hit.Normal, ray.Direction));
         } else {
-            result += vec3(0.5, 0.7, 1) * ray_color;
+            result += vec3(0.5, 0.7, 1) * rayColor;
             break;
         }
     }
@@ -337,23 +243,23 @@ vec3 trace() {
 }
 
 
-layout(local_size_x = 16, local_size_y = 8) in; //dim del blocco (ogni blocco ha 64 thread)
-void main() { //funzione che ogni thread esegue
-    ivec2 dim_window = imageSize(window);
+layout(local_size_x = 16, local_size_y = 8) in;
+void main() {
+    ivec2 dimWindow = imageSize(gWindow);
    
-    if (gl_GlobalInvocationID.x > dim_window.x || gl_GlobalInvocationID.y > dim_window.y) { //controllo se sono dentro alla window
+    if (gl_GlobalInvocationID.x > dimWindow.x || gl_GlobalInvocationID.y > dimWindow.y) {
         return;
     }
     
     vec3 result = trace();
 
-    if (scene_data.numFrames > 4) {
-        float weight = 1.0 / (scene_data.numFrames + 1);
-        vec3 previousColor = imageLoad(window, ivec2(gl_GlobalInvocationID.xy)).rgb;
+    if (gSceneData.NumFrames > 4) {
+        float weight = 1.0 / (gSceneData.NumFrames + 1);
+        vec3 previousColor = imageLoad(gWindow, ivec2(gl_GlobalInvocationID.xy)).rgb;
         result = mix(previousColor, result, weight); 
 
-        imageStore(window, ivec2(gl_GlobalInvocationID.xy), vec4(result, 1));
+        imageStore(gWindow, ivec2(gl_GlobalInvocationID.xy), vec4(result, 1));
     } else {
-        imageStore(window, ivec2(gl_GlobalInvocationID.xy), vec4(result, 1));
+        imageStore(gWindow, ivec2(gl_GlobalInvocationID.xy), vec4(result, 1));
     }
 }
