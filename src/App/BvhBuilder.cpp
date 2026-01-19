@@ -54,9 +54,9 @@ BvhBuilder::BvhBuilder(const std::shared_ptr<Mesh>& mesh, uint32_t maxDepth)
     mTriangles = ExtractTriangles(mesh);
 }
 
-std::vector<BvhNode> BvhBuilder::Build() {
+void BvhBuilder::Build(bool printStats) {
     mBvh.clear();
-    mBvh.reserve(pow(2, mMaxDepth) - 1);
+    mBvh.reserve(pow(2, mMaxDepth));  
 
     BvhNode root;
     root.TriangleCount = static_cast<uint32_t>(mTriangles.size());
@@ -67,9 +67,11 @@ std::vector<BvhNode> BvhBuilder::Build() {
 
     mBvh.push_back(root);
 
-    BuildLayer(mBvh[0], 0);
+    BuildLayer(mBvh[0], 1);
 
-    return mBvh;
+    if (printStats) {
+        PrintStats();
+    }
 }
 
 void BvhBuilder::BuildLayer(BvhNode& parent, uint32_t depth) {
@@ -102,4 +104,24 @@ void BvhBuilder::BuildLayer(BvhNode& parent, uint32_t depth) {
 
     BuildLayer(leftChild, depth + 1);
     BuildLayer(rightChild, depth + 1);
+}
+
+void BvhBuilder::PrintStats() {
+    uint32_t leavesCount = 0;
+    uint32_t avgTriangles = 0;
+    uint32_t maxTriangles = 0;
+    for (const auto& node : mBvh) {
+        if (node.ChildIndex == 0) {
+            leavesCount++;
+            avgTriangles += node.TriangleCount;
+            if (node.TriangleCount > maxTriangles) {
+                maxTriangles = node.TriangleCount;
+            }
+        }
+    }
+
+    avgTriangles /= leavesCount;
+
+    LOG_INFO("Built BVH with depth: {}, total nodes: {}, leaves: {}, avg triangles per leaf: {}, max triangles in a leaf: {}",
+        mMaxDepth, mBvh.size(), leavesCount, avgTriangles, maxTriangles);
 }

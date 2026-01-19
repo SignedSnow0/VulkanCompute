@@ -321,6 +321,10 @@ VulkanManager::VulkanManager(Window &window) {
 }
 
 VulkanManager::~VulkanManager() {
+    vkDestroyCommandPool(mDevice, mQueues.computeCommandPool, nullptr);
+    vkDestroyCommandPool(mDevice, mQueues.graphicsCommandPool, nullptr);
+    vkDestroyCommandPool(mDevice, mQueues.transferCommandPool, nullptr);
+
     vkDestroyDevice(mDevice, nullptr);
 
 #ifndef NDEBUG

@@ -6,6 +6,7 @@ struct SceneData {
     uint32_t numFrames;
     uint32_t seed;
     uint32_t maxBounces;
+    uint32_t maxBvhDepth;
 };
 
 struct Camera {

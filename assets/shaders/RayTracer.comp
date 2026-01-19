@@ -34,10 +34,18 @@ struct Plane {
     uint MaterialIndex;
 };
 
-struct Vertex {
-    vec3 Position;
-    vec3 Normal;
-    vec2 UV;
+struct BvhNode {
+    vec3 Min;
+    vec3 Max;
+    uint ChildIndex;
+    uint TriangleOffset;
+    uint TriangleCount;
+};
+
+struct Triangle {
+    vec3 V0;
+    vec3 V1;
+    vec3 V2;
 };
 
 layout(rgba8, binding = 0) uniform image2D gWindow;
@@ -46,32 +54,33 @@ layout (binding = 1) uniform SceneData {
     uint NumFrames;
     uint Seed;
     uint MaxBounces;
+    uint MaxBvhDepth;
 } gSceneData;
 
-layout (binding = 2) uniform Camera{
+layout (binding = 2) uniform Camera {
     vec3 Position;
     vec3 Forward;
 } gCamera;
 
-layout (std430, binding = 3) readonly buffer VertexBuffer {
-    Vertex vertices[];
-} gVertexBuffer;
-
-layout (std430, binding = 4) readonly buffer IndexBuffer {
-    uint indices[];
-} gIndexBuffer;
-
-layout (binding = 5) readonly buffer Spheres {
+layout (binding = 3) readonly buffer Spheres {
     Sphere spheres[];
 } gSphereBuffer;
 
-layout (binding = 6) readonly buffer Planes {
+layout (binding = 4) readonly buffer Planes {
     Plane planes[];
 } gPlaneBuffer;
 
-layout (binding = 7) readonly buffer Materials {
+layout (binding = 5) readonly buffer Materials {
     Material materials[];
 } gMaterialBuffer;
+
+layout (binding = 6) readonly buffer BvhNodes {
+    BvhNode nodes[];
+} gBvhBuffer;
+
+layout (binding = 7) readonly buffer Triangles {
+    Triangle triangles[];
+} gTrianglesBuffer;
 
 Ray rayGen() {
     ivec2 dimWindow = imageSize(gWindow);
@@ -90,59 +99,98 @@ Ray rayGen() {
     return ray;
 }
 
-bool intersectTriangle(Ray ray, vec3 p0, vec3 p1, vec3 p2, out RayHit hit) {
-    vec3 edge1 = p1 - p0;
-    vec3 edge2 = p2 - p0;
+bool intersectAABB(Ray ray, BvhNode aabb, out float tMin) {
+    vec3 invDir = 1.0 / ray.Direction;
+    vec3 t0s = (aabb.Min - ray.Origin) * invDir;
+    vec3 t1s = (aabb.Max - ray.Origin) * invDir;
+
+    vec3 tSmalls = min(t0s, t1s);
+    vec3 tBigs = max(t0s, t1s);
+
+    tMin = max(max(tSmalls.x, tSmalls.y), tSmalls.z);
+    float tMax = min(min(tBigs.x, tBigs.y), tBigs.z);
+
+    return tMax >= max(tMin, 0.0);
+}
+
+bool intersectTriangle(Ray ray, Triangle tri, out RayHit hit) {
+    vec3 edge1 = tri.V1 - tri.V0;
+    vec3 edge2 = tri.V2 - tri.V0;
     vec3 rayCrossE2 = cross(ray.Direction, edge2);
     float det = dot(edge1, rayCrossE2);
-
+    
     if (det > -EPSILON && det < EPSILON)
         return false;
-
+    
     float invDet = 1.0 / det;
-    vec3 s = ray.Origin - p0;
+    vec3 s = ray.Origin - tri.V0;
     float u = invDet * dot(s, rayCrossE2);
-
-    if ((u < 0 && abs(u) > EPSILON) || (u > 1 && abs(u-1) > EPSILON))
+    
+    if ((u < 0 && abs(u) > EPSILON) || (u > 1 && abs(u - 1) > EPSILON))
         return false;
-
+    
     vec3 sCrossE1 = cross(s, edge1);
     float v = invDet * dot(ray.Direction, sCrossE1);
     if ((v < 0 && abs(v) > EPSILON) || (u + v > 1 && abs(u + v - 1) > EPSILON))
         return false;
-
+    
     float t = invDet * dot(edge2, sCrossE1);
-    if (t > EPSILON)
-    {
+    if (t > EPSILON) {
         hit.Distance = t;
         hit.Position = ray.Origin + ray.Direction * t;
         hit.Normal = normalize(cross(edge1, edge2));
-
+        
         return true;
     }
     
     return false;
 }
 
-bool intersectMesh(Ray ray, int materialIndex, out RayHit hit, out vec3 albedoColor) {
-    albedoColor = vec3(1, 1, 1);
-
+bool intersectBvh(Ray ray, out RayHit hit) {
     hit.Distance = MAX_FLOAT;
+    hit.MaterialIndex = 0;
+    
+    BvhNode currentNode = gBvhBuffer.nodes[0];
+    
+    float tMin;
+    if (!intersectAABB(ray, currentNode, tMin)) {
+        return false;
+    }
+
+    int depth = 0;
+    while (currentNode.ChildIndex != 0 || depth < gSceneData.MaxBvhDepth) {
+        if (currentNode.TriangleCount == 0) {
+            return false;
+        }
+
+        float tMinA, tMinB;
+        bool hitA, hitB;
+        hitA = intersectAABB(ray, gBvhBuffer.nodes[currentNode.ChildIndex], tMinA);
+        hitB = intersectAABB(ray, gBvhBuffer.nodes[currentNode.ChildIndex + 1], tMinB);
+
+        if (hitA && hitB && tMinA < tMinB) {
+            currentNode = gBvhBuffer.nodes[currentNode.ChildIndex];
+        } else if (hitA && hitB && tMinB <= tMinA) {
+            currentNode = gBvhBuffer.nodes[currentNode.ChildIndex + 1];
+        } else if (hitA) {
+            currentNode = gBvhBuffer.nodes[currentNode.ChildIndex];
+        } else if (hitB) {
+            currentNode = gBvhBuffer.nodes[currentNode.ChildIndex + 1];
+        } else {
+            return false;
+        }
+    
+        depth++;
+    }
+
     bool hitSomething = false;
-
-    for (uint i = 0; i < gIndexBuffer.indices.length(); ) {
-        uint index0 = gIndexBuffer.indices[i++];//ottimizazione con indexbuffer per eliminare vertici duplicati
-        uint index1 = gIndexBuffer.indices[i++];
-        uint index2 = gIndexBuffer.indices[i++];
-
-        vec3 p0 = gVertexBuffer.vertices[index0].Position;
-        vec3 p1 = gVertexBuffer.vertices[index1].Position;
-        vec3 p2 = gVertexBuffer.vertices[index2].Position;
+    for (uint i = currentNode.TriangleOffset; i < currentNode.TriangleOffset + currentNode.TriangleCount; i++) {
+        Triangle tri = gTrianglesBuffer.triangles[i];
 
         RayHit currentHit;
-        if (intersectTriangle(ray, p0, p1, p2, currentHit) && currentHit.Distance < hit.Distance) {
+        if (intersectTriangle(ray, tri, currentHit) && currentHit.Distance < hit.Distance) {
             hit = currentHit;
-            hit.MaterialIndex = materialIndex;
+            hit.MaterialIndex = 0;
             hitSomething = true;
         }
     }
@@ -185,7 +233,7 @@ bool intersectPlane(Ray ray, Plane plane, out RayHit hit) {
     return false;
 }
 
-bool closestHit(Ray ray, out RayHit hit, out vec3 albedoColor) {
+bool closestHit(Ray ray, out RayHit hit) {
     hit.Distance = MAX_FLOAT;
     bool hitSomething = false;
     RayHit currentHit;
@@ -204,14 +252,13 @@ bool closestHit(Ray ray, out RayHit hit, out vec3 albedoColor) {
         }
     }
 
-    if (intersectMesh(ray, 0, currentHit, albedoColor) && currentHit.Distance < hit.Distance) {
+    if (intersectBvh(ray, currentHit) && currentHit.Distance < hit.Distance) {
         hit = currentHit;
         hitSomething = true;
     }
 
     return hitSomething;
 }
-
 
 vec3 trace() {
     vec3 result = vec3(0, 0, 0);
@@ -220,20 +267,19 @@ vec3 trace() {
 
     Ray ray = rayGen();
     RayHit hit;
-    vec3 albedoColor = vec3(1, 1, 1);
-    for (int i = 0; i < gSceneData.MaxBounces; i++) {
-        if (closestHit(ray, hit, albedoColor)) {
-            ray.Origin = hit.Position + EPSILON * hit.Normal;
-
+    for (int i = 0; i <= gSceneData.MaxBounces; i++) {
+        if (closestHit(ray, hit)) {
             Material hitMaterial = gMaterialBuffer.materials[hit.MaterialIndex];
 
-            vec3 diffuseDirection = randomOnHemisphere(state, hit.Normal);
+            ray.Origin = hit.Position + EPSILON * hit.Normal;
+            
+            vec3 diffuseDirection = normalize(hit.Normal + randomOnHemisphere(state, hit.Normal));
             vec3 specularDirection = reflect(ray.Direction, hit.Normal);
-            ray.Direction = mix(diffuseDirection, specularDirection, hitMaterial.Metalness);
+            ray.Direction = mix(diffuseDirection, specularDirection, hitMaterial.Metalness); 
 
             vec3 emittedLight = hitMaterial.EmissionColor * hitMaterial.EmissionStrength;
             result += emittedLight * rayColor;
-            rayColor *= (hitMaterial.Color * albedoColor * dot(hit.Normal, ray.Direction));
+            rayColor *= hitMaterial.Color * dot(hit.Normal, ray.Direction);
         } else {
             result += vec3(0.5, 0.7, 1) * rayColor;
             break;
@@ -252,13 +298,8 @@ void main() {
     
     vec3 result = trace();
 
-    if (gSceneData.NumFrames > 4) {
-        float weight = 1.0 / (gSceneData.NumFrames + 1);
-        vec3 previousColor = imageLoad(gWindow, ivec2(gl_GlobalInvocationID.xy)).rgb;
-        result = mix(previousColor, result, weight); 
-
-        imageStore(gWindow, ivec2(gl_GlobalInvocationID.xy), vec4(result, 1));
-    } else {
-        imageStore(gWindow, ivec2(gl_GlobalInvocationID.xy), vec4(result, 1));
-    }
+    float weight = 1.0 / (gSceneData.NumFrames + 1);
+    vec3 previousColor = imageLoad(gWindow, ivec2(gl_GlobalInvocationID.xy)).rgb;
+    result = mix(previousColor, result, weight); 
+    imageStore(gWindow, ivec2(gl_GlobalInvocationID.xy), vec4(result, 1));
 }

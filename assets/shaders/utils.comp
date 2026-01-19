@@ -27,9 +27,10 @@ float randomNormalDistribution(inout uint state) {
 }
 
 vec3 randomOnSphere(inout uint state) {
-    return normalize(vec3(randomNormalDistribution(state), 
-                          randomNormalDistribution(state), 
-                          randomNormalDistribution(state)));
+    float x = randomNormalDistribution(state) * 2.0f - 1.0f;
+    float y = randomNormalDistribution(state) * 2.0f - 1.0f;
+    float z = randomNormalDistribution(state) * 2.0f - 1.0f;
+    return normalize(vec3(x, y, z));
 }
 
 vec3 randomOnHemisphere(inout uint state, vec3 normal) {

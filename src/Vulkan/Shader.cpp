@@ -55,11 +55,11 @@ private:
 
 shaderc_shader_kind getShaderKind(ShaderStage stage) {
     switch (stage) {
-    case Vertex:
+    case ShaderStage::Vertex:
         return shaderc_vertex_shader;
-    case Fragment:
+    case ShaderStage::Fragment:
         return shaderc_fragment_shader;
-    case Compute:
+    case ShaderStage::Compute:
         return shaderc_compute_shader;
     default:
         return shaderc_glsl_infer_from_source;
@@ -68,11 +68,11 @@ shaderc_shader_kind getShaderKind(ShaderStage stage) {
 
 VkShaderStageFlagBits getVulkanShaderStage(ShaderStage stage) {
     switch (stage) {
-    case Vertex:
+    case ShaderStage::Vertex:
         return VK_SHADER_STAGE_VERTEX_BIT;
-    case Fragment:
+    case ShaderStage::Fragment:
         return VK_SHADER_STAGE_FRAGMENT_BIT;
-    case Compute:
+    case ShaderStage::Compute:
         return VK_SHADER_STAGE_COMPUTE_BIT;
     default:
         return VK_SHADER_STAGE_ALL; // Fallback

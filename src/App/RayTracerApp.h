@@ -8,6 +8,7 @@
 #include "Core/VulkanComputeApp.h"
 #include "Vulkan/Pipeline.h"
 #include "Vulkan/Shader.h"
+#include "BvhRenderer.h"
 
 class RayTracerApp : public VulkanComputeApp {
 public:
@@ -22,9 +23,11 @@ public:
 
 private:
     void BuildScene();
-    void RenderGui(Camera& camera, SceneData& sceneData, float dt);
+    void RenderGui(SceneData& sceneData, float dt);
     void BindUniformBuffers(const std::shared_ptr<CommandBuffer>& commandBuffer);
     void BindStorageBuffers(const std::shared_ptr<CommandBuffer>& commandBuffer);
+    bool MoveCamera(Camera& camera, float dt);
+    void UpdateBuffers();
 
     std::uniform_int_distribution<uint32_t> mRandomDistribution;
     std::mt19937 mRandomGenerator;
@@ -41,7 +44,6 @@ private:
     std::vector<Sphere> mSpheres;
     std::vector<Plane> mPlanes;
     std::vector<Material> mMaterials;
-    std::vector<MeshRenderer> mMeshes;
     std::shared_ptr<Scene> mScene;
-    std::shared_ptr<BvhBuilder> mBvhBuilder;
+    std::unique_ptr<BvhRenderer> mBvhRenderer;
 };

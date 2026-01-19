@@ -11,7 +11,7 @@
 #include "Vulkan/Surface.h"
 #include "Vulkan/VulkanManager.h"
 
-enum ShaderStage { Vertex, Fragment, Compute };
+enum class ShaderStage { Vertex, Fragment, Compute };
 
 class Shader {
 public:
