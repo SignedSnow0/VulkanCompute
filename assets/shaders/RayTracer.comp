@@ -298,8 +298,12 @@ void main() {
     
     vec3 result = trace();
 
-    float weight = 1.0 / (gSceneData.NumFrames + 1);
-    vec3 previousColor = imageLoad(gWindow, ivec2(gl_GlobalInvocationID.xy)).rgb;
-    result = mix(previousColor, result, weight); 
-    imageStore(gWindow, ivec2(gl_GlobalInvocationID.xy), vec4(result, 1));
+    if (gSceneData.NumFrames > 1) {
+        float weight = 1.0 / (gSceneData.NumFrames + 1);
+        vec3 previousColor = imageLoad(gWindow, ivec2(gl_GlobalInvocationID.xy)).rgb;
+        result = mix(previousColor, result, weight);
+        imageStore(gWindow, ivec2(gl_GlobalInvocationID.xy), vec4(result, 1));
+    } else {
+        imageStore(gWindow, ivec2(gl_GlobalInvocationID.xy), vec4(result, 1));
+    }
 }
