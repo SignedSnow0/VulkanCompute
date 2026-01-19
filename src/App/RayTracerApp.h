@@ -21,9 +21,11 @@ public:
 
 private:
     void BuildScene();
-    void RenderGui(Camera& camera, SceneData& sceneData, float dt);
+    void RenderGui(SceneData& sceneData, float dt);
+    void UpdateBuffers();
     void BindUniformBuffers(const std::shared_ptr<CommandBuffer>& commandBuffer);
     void BindStorageBuffers(const std::shared_ptr<CommandBuffer>& commandBuffer);
+    bool MoveCamera(Camera& camera, float dt);
     AABB CalculateAABB(const std::shared_ptr<Mesh>& mesh);
 
     std::uniform_int_distribution<uint32_t> mRandomDistribution;

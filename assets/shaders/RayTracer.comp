@@ -148,8 +148,7 @@ bool intersectTriangle(Ray ray, vec3 p0, vec3 p1, vec3 p2, out RayHit hit) {
     return false;
 }
 
-bool intersectMesh(Ray ray, int meshIndex, out RayHit hit, out vec3 albedoColor) {
-    albedoColor = vec3(1, 1, 1);
+bool intersectMesh(Ray ray, int meshIndex, out RayHit hit) {
     if (!intersectAABB(ray, gAABBBuffer.aabbs[meshIndex])) {
         return false;
     }
@@ -212,7 +211,7 @@ bool intersectPlane(Ray ray, Plane plane, out RayHit hit) {
     return false;
 }
 
-bool closestHit(Ray ray, out RayHit hit, out vec3 albedoColor) {
+bool closestHit(Ray ray, out RayHit hit) {
     hit.Distance = MAX_FLOAT;
     bool hitSomething = false;
 
@@ -231,7 +230,7 @@ bool closestHit(Ray ray, out RayHit hit, out vec3 albedoColor) {
         }
     }
     
-    if (intersectMesh(ray, 0, currentHit, albedoColor) && currentHit.Distance < hit.Distance) {
+    if (intersectMesh(ray, 0, currentHit) && currentHit.Distance < hit.Distance) {
         hit = currentHit;
         hitSomething = true;
     }
@@ -246,20 +245,19 @@ vec3 trace() {
     
     Ray ray = rayGen();
     RayHit hit;
-    vec3 albedoColor = vec3(1, 1, 1);
     for (int i = 0; i < gSceneData.MaxBounces; i++) {
-        if (closestHit(ray, hit, albedoColor)) {
+        if (closestHit(ray, hit)) {
             ray.Origin = hit.Position + EPSILON * hit.Normal;
             
             Material hitMaterial = gMaterialBuffer.materials[hit.MaterialIndex];
             
-            vec3 diffuseDirection = randomOnHemisphere(state, hit.Normal);
+            vec3 diffuseDirection = normalize(hit.Normal + randomOnHemisphere(state, hit.Normal));
             vec3 specularDirection = reflect(ray.Direction, hit.Normal);
             ray.Direction = mix(diffuseDirection, specularDirection, hitMaterial.Metalness);
             
             vec3 emittedLight = hitMaterial.EmissionColor * hitMaterial.EmissionStrength;
             result += emittedLight * rayColor;
-            rayColor *= (hitMaterial.Color * albedoColor * dot(hit.Normal, ray.Direction));
+            rayColor *= hitMaterial.Color * dot(hit.Normal, ray.Direction);
         } else {
             result += vec3(.5, .7, 1) * rayColor;
             break;
@@ -268,22 +266,20 @@ vec3 trace() {
     return result;
 }
 
-layout (local_size_x = 16, local_size_y = 8) in;
+layout (local_size_x = 8, local_size_y = 8) in;
 void main() {
     ivec2 dimWindow = imageSize(gWindow);
-    
     if (gl_GlobalInvocationID.x > dimWindow.x || gl_GlobalInvocationID.y > dimWindow.y) {
         return;
     }
-    
+
     vec3 result = trace();
     
-    if (gSceneData.NumFrames > 4) {
-        float weight = 1. / (gSceneData.NumFrames + 1);
-        vec3 previousColor = imageLoad(gWindow, ivec2(gl_GlobalInvocationID.xy)).rgb;
-        result = mix(previousColor, result, weight);
-        
-        imageStore(gWindow, ivec2(gl_GlobalInvocationID.xy), vec4(result, 1));
+    if (gSceneData.NumFrames > 1) {
+        float weight=1./(gSceneData.NumFrames+1);
+        vec3 previousColor=imageLoad(gWindow,ivec2(gl_GlobalInvocationID.xy)).rgb;
+        result=mix(previousColor,result,weight);
+        imageStore(gWindow,ivec2(gl_GlobalInvocationID.xy),vec4(result,1));
     } else {
         imageStore(gWindow, ivec2(gl_GlobalInvocationID.xy), vec4(result, 1));
     }
