@@ -11,6 +11,7 @@ add_executable(VulkanCompute
     src/App/main.cpp
     src/App/RayTracerApp.cpp
     src/App/BvhBuilder.cpp
+    src/App/BvhRenderer.cpp
 
     src/Core/AssetManager.cpp
     src/Core/Logger.cpp
