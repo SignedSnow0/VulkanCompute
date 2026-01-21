@@ -149,49 +149,29 @@ bool intersectTriangle(Ray ray, Triangle tri, out RayHit hit) {
 bool intersectBvh(Ray ray, out RayHit hit) {
     hit.Distance = MAX_FLOAT;
     hit.MaterialIndex = 0;
+
+    int stackPointer = 0;
+    BvhNode stack[32];
+    stack[stackPointer++] = gBvhBuffer.nodes[0];
     
-    BvhNode currentNode = gBvhBuffer.nodes[0];
-    
-    float tMin;
-    if (!intersectAABB(ray, currentNode, tMin)) {
-        return false;
-    }
-
-    int depth = 0;
-    while (currentNode.ChildIndex != 0 || depth < gSceneData.MaxBvhDepth) {
-        if (currentNode.TriangleCount == 0) {
-            return false;
-        }
-
-        float tMinA, tMinB;
-        bool hitA, hitB;
-        hitA = intersectAABB(ray, gBvhBuffer.nodes[currentNode.ChildIndex], tMinA);
-        hitB = intersectAABB(ray, gBvhBuffer.nodes[currentNode.ChildIndex + 1], tMinB);
-
-        if (hitA && hitB && tMinA < tMinB) {
-            currentNode = gBvhBuffer.nodes[currentNode.ChildIndex];
-        } else if (hitA && hitB && tMinB <= tMinA) {
-            currentNode = gBvhBuffer.nodes[currentNode.ChildIndex + 1];
-        } else if (hitA) {
-            currentNode = gBvhBuffer.nodes[currentNode.ChildIndex];
-        } else if (hitB) {
-            currentNode = gBvhBuffer.nodes[currentNode.ChildIndex + 1];
-        } else {
-            return false;
-        }
-    
-        depth++;
-    }
-
     bool hitSomething = false;
-    for (uint i = currentNode.TriangleOffset; i < currentNode.TriangleOffset + currentNode.TriangleCount; i++) {
-        Triangle tri = gTrianglesBuffer.triangles[i];
-
-        RayHit currentHit;
-        if (intersectTriangle(ray, tri, currentHit) && currentHit.Distance < hit.Distance) {
-            hit = currentHit;
-            hit.MaterialIndex = 0;
-            hitSomething = true;
+    while (stackPointer > 0) {
+        BvhNode node = stack[--stackPointer];
+        float distance;
+        if (intersectAABB(ray, node, distance)) {
+            if (node.ChildIndex == 0) {
+                for (uint i = node.TriangleOffset; i < node.TriangleOffset + node.TriangleCount; i++) {
+                    Triangle tri = gTrianglesBuffer.triangles[i];
+                    RayHit currentHit;
+                    if (intersectTriangle(ray, tri, currentHit) && currentHit.Distance < hit.Distance) {
+                        hit = currentHit;
+                        hitSomething = true;
+                    }
+                }
+            } else {
+                stack[stackPointer++] = gBvhBuffer.nodes[node.ChildIndex + 1];
+                stack[stackPointer++] = gBvhBuffer.nodes[node.ChildIndex];
+            }
         }
     }
 

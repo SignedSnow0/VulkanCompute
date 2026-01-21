@@ -125,3 +125,16 @@ void BvhBuilder::PrintStats() {
     LOG_INFO("Built BVH with depth: {}, total nodes: {}, leaves: {}, avg triangles per leaf: {}, max triangles in a leaf: {}",
         mMaxDepth, mBvh.size(), leavesCount, avgTriangles, maxTriangles);
 }
+
+void BvhBuilder::ExportToCSV(const std::string& filepath) const {
+    std::ofstream file(filepath);
+    file << "MinX,MinY,MinZ,MaxX,MaxY,MaxZ,ChildIndex,TriangleCount\n";
+    for (size_t i = 0; i < mBvh.size(); ++i) {
+        const auto& node = mBvh[i];
+        file << node.Min.x << "," << node.Min.y << "," << node.Min.z << ","
+             << node.Max.x << "," << node.Max.y << "," << node.Max.z << ","
+             << node.ChildIndex << ","
+             << node.TriangleCount << "\n";
+    }
+    file.close();
+}

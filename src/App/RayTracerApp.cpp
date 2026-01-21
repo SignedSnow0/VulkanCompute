@@ -30,7 +30,7 @@ RayTracerApp::RayTracerApp()
 RayTracerApp::~RayTracerApp() = default;
 
 void RayTracerApp::OnStart() {
-    glm::vec3 translation = glm::vec3(10, 10, 10);
+    glm::vec3 translation = glm::vec3(0, .3, 0);
     glm::vec3 rotation = glm::vec3(0, 90, 0);
     glm::vec3 scale = glm::vec3(1);
 
@@ -39,6 +39,7 @@ void RayTracerApp::OnStart() {
     for (auto& mesh : mScene->GetMeshes()) {
         BvhBuilder builder(mesh, sMaxBvhDepth);
         builder.Build();
+        builder.ExportToCSV("bvh.csv");
         mBvhRenderer = std::make_unique<BvhRenderer>(mVulkanManager, builder);
     }
 

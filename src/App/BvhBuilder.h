@@ -32,6 +32,8 @@ public:
         return mTriangles;
     }
 
+    void ExportToCSV(const std::string& filepath) const;
+
 private:
     void BuildLayer(BvhNode& parent, uint32_t depth);
     void PrintStats();
