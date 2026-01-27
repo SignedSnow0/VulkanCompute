@@ -7,7 +7,7 @@
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtx/quaternion.hpp>
 
-static constexpr uint32_t sMaxBvhDepth = 12;
+static constexpr uint32_t sMaxBvhDepth = 16;
 static constexpr glm::vec3 up = glm::vec3(0, 1, 0);
 
 RayTracerApp::RayTracerApp()
@@ -35,7 +35,7 @@ void RayTracerApp::OnStart() {
     glm::vec3 scale = glm::vec3(1);
 
     glm::mat4 modelMatrix = glm::translate(glm::mat4(1.0f), translation) * glm::toMat4(glm::quat{ glm::radians(rotation) }) * glm::scale(glm::mat4(1.0f), scale);
-    mScene = AssetManager::LoadScene("assets/models/Dragon_8k.obj", modelMatrix);
+    mScene = AssetManager::LoadScene("assets/models/Dragon_80K.obj", modelMatrix);
     for (auto& mesh : mScene->GetMeshes()) {
         BvhBuilder builder(mesh, sMaxBvhDepth);
         builder.Build();

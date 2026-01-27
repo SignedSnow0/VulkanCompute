@@ -151,12 +151,12 @@ bool intersectBvh(Ray ray, out RayHit hit) {
     hit.MaterialIndex = 0;
 
     int stackPointer = 0;
-    BvhNode stack[32];
-    stack[stackPointer++] = gBvhBuffer.nodes[0];
+    uint stack[32];
+    stack[stackPointer++] = 0;
     
     bool hitSomething = false;
     while (stackPointer > 0) {
-        BvhNode node = stack[--stackPointer];
+        BvhNode node = gBvhBuffer.nodes[stack[--stackPointer]];
         float distance;
         if (intersectAABB(ray, node, distance)) {
             if (node.ChildIndex == 0) {
@@ -169,8 +169,25 @@ bool intersectBvh(Ray ray, out RayHit hit) {
                     }
                 }
             } else {
-                stack[stackPointer++] = gBvhBuffer.nodes[node.ChildIndex + 1];
-                stack[stackPointer++] = gBvhBuffer.nodes[node.ChildIndex];
+                float distA, distB;
+                intersectAABB(ray, gBvhBuffer.nodes[node.ChildIndex], distA);
+                intersectAABB(ray, gBvhBuffer.nodes[node.ChildIndex+1], distB);
+
+                if (distA < distB) {
+                    if (distB < hit.Distance) {
+                        stack[stackPointer++] = node.ChildIndex + 1;
+                    }
+                    if (distA < hit.Distance) {
+                        stack[stackPointer++] = node.ChildIndex;
+                    }
+                } else {
+                    if (distA < hit.Distance) {
+                        stack[stackPointer++] = node.ChildIndex;
+                    }
+                    if (distB < hit.Distance) {
+                        stack[stackPointer++] = node.ChildIndex + 1;
+                    }
+                }
             }
         }
     }
@@ -211,7 +228,7 @@ bool intersectPlane(Ray ray, Plane plane, out RayHit hit) {
         }
     }
     return false;
-}
+} 
 
 bool closestHit(Ray ray, out RayHit hit) {
     hit.Distance = MAX_FLOAT;
@@ -278,7 +295,7 @@ void main() {
     
     vec3 result = trace();
 
-    if (gSceneData.NumFrames > 1) {
+    if (gSceneData.NumFrames > 3) {
         float weight = 1.0 / (gSceneData.NumFrames + 1);
         vec3 previousColor = imageLoad(gWindow, ivec2(gl_GlobalInvocationID.xy)).rgb;
         result = mix(previousColor, result, weight);

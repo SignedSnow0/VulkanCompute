@@ -110,19 +110,25 @@ void BvhBuilder::PrintStats() {
     uint32_t leavesCount = 0;
     uint32_t avgTriangles = 0;
     uint32_t maxTriangles = 0;
+    uint32_t nonEmpty = 0;
+    
     for (const auto& node : mBvh) {
         if (node.ChildIndex == 0) {
             leavesCount++;
-            avgTriangles += node.TriangleCount;
+            if (node.TriangleCount > 0) {
+                nonEmpty++;
+                avgTriangles += node.TriangleCount;
+            }
+
             if (node.TriangleCount > maxTriangles) {
                 maxTriangles = node.TriangleCount;
             }
         }
     }
 
-    avgTriangles /= leavesCount;
+    avgTriangles /= nonEmpty;
 
-    LOG_INFO("Built BVH with depth: {}, total nodes: {}, leaves: {}, avg triangles per leaf: {}, max triangles in a leaf: {}",
+    LOG_INFO("Built BVH with depth: {}, total nodes: {}, leaves: {}, avg triangles per leaf (not empty): {}, max triangles in a leaf: {}",
         mMaxDepth, mBvh.size(), leavesCount, avgTriangles, maxTriangles);
 }
 
