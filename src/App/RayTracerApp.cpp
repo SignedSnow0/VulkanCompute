@@ -39,7 +39,7 @@ void RayTracerApp::OnStart() {
     for (auto& mesh : mScene->GetMeshes()) {
         BvhBuilder builder(mesh, sMaxBvhDepth);
         builder.Build();
-        builder.ExportToCSV("bvh.csv");
+        //builder.ExportToCSV("bvh.csv");
         mBvhRenderer = std::make_unique<BvhRenderer>(mVulkanManager, builder);
     }
 
@@ -111,10 +111,8 @@ void RayTracerApp::OnRender(float dt,
         return;
     }
 
-    mPipeline->Dispatch(
-        commandBuffer, (mSurface->Extent().width + 7) / 8,
-        (mSurface->Extent().height + 7) / 8,
-        1);
+    mPipeline->Dispatch(commandBuffer, { mSurface->Extent().width,
+                        mSurface->Extent().height, 1 });
 }
 
 void RayTracerApp::OnStop() {}

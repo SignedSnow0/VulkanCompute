@@ -127,10 +127,29 @@ void createDescriptorSet(VkDevice device, const std::vector<uint32_t> &bytecode,
                          std::vector<VkDescriptorSetLayout> &outLayouts,
                          VkDescriptorPool &outPool,
                          std::vector<VkDescriptorSet> &outSets,
-                         std::map<std::string, uint32_t> &outBindingMap) {
+                         std::map<std::string, uint32_t> &outBindingMap,
+                         uint32_t &local_size_x,
+                         uint32_t& local_size_y,
+                         uint32_t& local_size_z) {
     spirv_cross::Compiler glslCompiler(bytecode);
     spirv_cross::ShaderResources resources =
         glslCompiler.get_shader_resources();
+
+    auto eps = glslCompiler.get_entry_points_and_stages();
+    for (const auto &ep : eps) {
+        LOG_DEBUG("Shader entry point: '{}' for stage {}",
+                  ep.name,
+            static_cast<uint32_t>(ep.execution_model)); 
+
+        if (ep.execution_model == spv::ExecutionModelGLCompute) {
+            local_size_x = glslCompiler.get_execution_mode_argument(spv::ExecutionModeLocalSize, 0);
+            local_size_y = glslCompiler.get_execution_mode_argument(spv::ExecutionModeLocalSize, 1);
+            local_size_z = glslCompiler.get_execution_mode_argument(spv::ExecutionModeLocalSize, 2);
+
+            LOG_DEBUG("Local workgroup size: {} x {} x {}", local_size_x,
+                      local_size_y, local_size_z);
+        }
+    }
 
     LOG_DEBUG(
         "Shader reflection: found {} uniform buffers, {} storage buffers, "
@@ -273,7 +292,7 @@ Shader::Shader(const std::shared_ptr<VulkanManager> &vulkanManager,
 
     createDescriptorSet(mVulkanManager->Device(), spirv, mStage, setCount,
                         mDescriptorSetLayouts, mDescriptorPool, mDescriptorSets,
-                        mBindingMap);
+                        mBindingMap, mWorkGroupSizeX, mWorkGroupSizeY, mWorkGroupSizeZ);
 
     LOG_INFO("Created shader: {}", filename);
 }

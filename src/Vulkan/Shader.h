@@ -4,6 +4,7 @@
 #include <memory>
 #include <string>
 #include <vulkan/vulkan.h>
+#include <glm/glm.hpp>
 
 #include "Vulkan/Buffer.hpp"
 #include "Vulkan/CommandBuffer.h"
@@ -29,6 +30,26 @@ public:
         return mDescriptorSets[frameIndex];
     }
     [[nodiscard]] VkPipelineShaderStageCreateInfo CreateShaderStageInfo() const;
+
+    [[nodiscard]] inline uint32_t GroupSizeX() const { return mWorkGroupSizeX; }
+    [[nodiscard]] inline uint32_t GroupSizeY() const { return mWorkGroupSizeY; }
+    [[nodiscard]] inline uint32_t GroupSizeZ() const { return mWorkGroupSizeZ; }
+
+    [[nodiscard]] inline glm::uvec3 GroupSize() const {
+        return glm::uvec3{
+            mWorkGroupSizeX,
+            mWorkGroupSizeY,
+            mWorkGroupSizeZ
+        };
+    }
+
+    [[nodiscard]] inline glm::uvec3 FitInvocationToWorkGroup(const glm::uvec3& invocation) const {
+        return glm::uvec3{
+            (invocation.x + mWorkGroupSizeX - 1) / mWorkGroupSizeX,
+            (invocation.y + mWorkGroupSizeY - 1) / mWorkGroupSizeY,
+            (invocation.z + mWorkGroupSizeZ - 1) / mWorkGroupSizeZ
+        };
+    }
 
     template <typename T>
     void BindBuffer(const Buffer<T> &buffer, uint32_t binding,
@@ -130,6 +151,10 @@ private:
            const std::string &filename, ShaderStage stage, uint32_t setCount);
 
     std::shared_ptr<VulkanManager> mVulkanManager;
+
+    uint32_t mWorkGroupSizeX{0};
+    uint32_t mWorkGroupSizeY{0};
+    uint32_t mWorkGroupSizeZ{0};
 
     VkShaderStageFlagBits mStage;
     VkShaderModule mShader{VK_NULL_HANDLE};

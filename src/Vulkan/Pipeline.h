@@ -37,6 +37,9 @@ public:
                   uint32_t groupCountX, uint32_t groupCountY,
                   uint32_t groupCountZ);
 
+    void Dispatch(const std::shared_ptr<CommandBuffer>& commandBuffer, 
+                  const glm::uvec3 dispatchSize);
+
 private:
     std::shared_ptr<VulkanManager> mVulkanManager;
     std::shared_ptr<Shader> mComputeShader;

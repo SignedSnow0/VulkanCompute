@@ -258,3 +258,10 @@ void ComputePipeline::Dispatch(
         vkCmdDispatch(cmdBuffer, groupCountX, groupCountY, groupCountZ);
     });
 }
+
+void ComputePipeline::Dispatch(const std::shared_ptr<CommandBuffer>& commandBuffer,
+                               glm::uvec3 dispatchSize) {
+    glm::uvec3 groupCount = mComputeShader->FitInvocationToWorkGroup(
+        dispatchSize);
+    Dispatch(commandBuffer, groupCount.x, groupCount.y, groupCount.z);
+}
