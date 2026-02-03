@@ -29,46 +29,24 @@ RayTracerApp::RayTracerApp()
 RayTracerApp::~RayTracerApp() = default;
 
 void RayTracerApp::OnStart() {
-    glm::vec3 translation = glm::vec3(0, -.5, -.5);
-    glm::vec3 rotation = glm::vec3(-90, -90, 0);
-    glm::vec3 scale = glm::vec3(0.4);
+    glm::vec3 translation = glm::vec3(0, .3, 0);
+    glm::vec3 rotation = glm::vec3(0, 90, 0);
+    glm::vec3 scale = glm::vec3(1);
 
     glm::mat4 modelMatrix = glm::translate(glm::mat4(1.0f), translation) * glm::toMat4(glm::quat{ glm::radians(rotation) }) * glm::scale(glm::mat4(1.0f), scale);
-    mScene = AssetManager::LoadScene("assets/models/viking_room/viking_room.obj", modelMatrix);
+    mScene = AssetManager::LoadScene("assets/models/Dragon_80K.obj", modelMatrix);
     for (auto& mesh : mScene->GetMeshes()) {
         mMeshes.push_back(MeshRenderer{ mVulkanManager, mesh });
         mAABBs.push_back(CalculateAABB(mesh));
     }
 
-    Material material;
-    material.color = { 1, .64, .22 };
-    material.emission_color = { 0, 0, 0, 0};
-    material.metalness = .4;
-    mMaterials.push_back(material);
+     Material meshMaterial;
+    meshMaterial.color = { 1, .64, .22 };
+    meshMaterial.emission_color = { 0, 0, 0, 0};
+    meshMaterial.metalness = .4;
+    mMaterials.push_back(meshMaterial);
 
     BuildScene();
-
-    Sphere lightSphere;
-    lightSphere.position = { -4, 5, -10 };
-    lightSphere.radius = 5;
-    lightSphere.materialIndex = mMaterials.size();
-    mSpheres.push_back(lightSphere);
-
-    material.color = { 0, 0, 0 };
-    material.emission_color = { 1, 1, 1, 1 };
-    material.metalness = 0;
-    mMaterials.push_back(material);
-
-    Plane groundPlane;
-    groundPlane.position = { 0, -1, 0 };
-    groundPlane.normal = { 0, 1, 0 };
-    groundPlane.materialIndex = mMaterials.size();
-    mPlanes.push_back(groundPlane);
-
-    material.color = { .45, .67, .44 };
-    material.emission_color = {0, 0, 0, 0};
-    material.metalness = 0;
-    mMaterials.push_back(material);
 
     mSpheresBuffer = std::make_shared<Buffer<Sphere>>(
         mVulkanManager, mSpheres.data(), sizeof(Sphere) * mSpheres.size(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
@@ -140,37 +118,79 @@ void RayTracerApp::OnRender(float dt,
 void RayTracerApp::OnStop() {}
     
 void RayTracerApp::BuildScene() {
-    Sphere sphere;
-    sphere.position = { -1, 0, -2 };
-    sphere.radius = 1;
-    sphere.materialIndex = mMaterials.size();
-    mSpheres.push_back(sphere);
+    Plane boxPlane;
+    boxPlane.position = { 0, 0, 0 };
+    boxPlane.normal = { 0, 1, 0 };
+    boxPlane.materialIndex = mMaterials.size();
+    mPlanes.push_back(boxPlane);
 
     Material material;
-    material.color = { .55, .89, 1};
+    material.color = { .89, .85, .79 };
     material.emission_color = { 0, 0, 0, 0 };
-    material.metalness = .4;
-    mMaterials.push_back(material);
-
-    sphere.position = { 1, 0, -2 };
-    sphere.radius = 1;
-    sphere.materialIndex = mMaterials.size();
-    mSpheres.push_back(sphere);
-
-    material.color = { 1, .34, .34 };
-    material.emission_color = { 0, 0, 0, 0 };
-    material.metalness = .95;
-    mMaterials.push_back(material);
-
-    sphere.position = { -4, 5, -10 };
-    sphere.radius = 5;
-    sphere.materialIndex = mMaterials.size();
-    mSpheres.push_back(sphere);
-
-    material.color = {0, 0, 0};
-    material.emission_color = {1, 1, 1, 1};
     material.metalness = 0;
     mMaterials.push_back(material);
+
+    boxPlane.position = { -1, 0, 0 };
+    boxPlane.normal = { 1, 0, 0 };
+    boxPlane.materialIndex = mMaterials.size();
+    mPlanes.push_back(boxPlane);
+
+    material.color = { 1, 0, 0 };
+    material.emission_color = { 0, 0, 0, 0 };
+    material.metalness = 0;
+    mMaterials.push_back(material);
+
+    boxPlane.position = { 1, 0, 0 };
+    boxPlane.normal = { -1, 0, 0 };
+    boxPlane.materialIndex = mMaterials.size();
+    mPlanes.push_back(boxPlane);
+
+    material.color = { 0, 1, 0 };
+    material.emission_color = { 0, 0, 0, 0 };
+    material.metalness = 0;
+    mMaterials.push_back(material);
+
+    boxPlane.position = { 0, 0, -1 };
+    boxPlane.normal = { 0, 0, 1 };
+    boxPlane.materialIndex = mMaterials.size();
+    mPlanes.push_back(boxPlane);
+
+    material.color = { .89, .85, .79 };
+    material.emission_color = { 0, 0, 0, 0 };
+    material.metalness = 0;
+    mMaterials.push_back(material);
+
+    boxPlane.position = { 0, 0, 1 };
+    boxPlane.normal = { 0, 0, -1 };
+    boxPlane.materialIndex = mMaterials.size();
+    mPlanes.push_back(boxPlane);
+
+    material.color = { .89, .85, .79 };
+    material.emission_color = { 0, 0, 0, 0 };
+    material.metalness = 0;
+    mMaterials.push_back(material);
+
+    boxPlane.position = { 0, 2, 0 };
+    boxPlane.normal = { 0, -1, 0 };
+    boxPlane.materialIndex = mMaterials.size();
+    mPlanes.push_back(boxPlane);
+
+    material.color = { .89, .85, .79 };
+    material.emission_color = { 0, 0, 0, 0 };
+    material.metalness = 0;
+    mMaterials.push_back(material);
+
+    Sphere sphere;
+    sphere.position = { 0, 2, 0 };
+    sphere.radius = .5;
+    sphere.materialIndex = mMaterials.size();
+    mSpheres.push_back(sphere);
+
+    Material sphereMaterial;
+    sphereMaterial.color = { 1, 1, 1 };
+    sphereMaterial.emission_color = { 1, 1, 1, 1 };
+    sphereMaterial.metalness = 0;
+    mMaterials.push_back(sphereMaterial);
 }
 
 void RayTracerApp::RenderGui(SceneData& sceneData, float dt) {
