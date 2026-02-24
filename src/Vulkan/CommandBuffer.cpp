@@ -32,7 +32,7 @@ CommandBuffer::CommandBuffer(
     const std::shared_ptr<VulkanManager> &vulkanManager, uint32_t count)
     : mVulkanManager(vulkanManager) {
     mPool = createCommandPool(mVulkanManager->Device(),
-                              mVulkanManager->ComputeQueueFamilyIndex());
+                              mVulkanManager->ComputeQueue().familyIndex);
     mCommandBuffers =
         allocateCommandBuffers(mVulkanManager->Device(), mPool, count);
     mCurrentBufferIndex = std::nullopt;

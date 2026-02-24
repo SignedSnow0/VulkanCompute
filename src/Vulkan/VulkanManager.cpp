@@ -186,21 +186,68 @@ VkPhysicalDevice choosePhysicalDevice(VkInstance instance) {
 
 VkDevice createDevice(VkPhysicalDevice physicalDevice,
                       const std::vector<const char *> &requiredLayers,
-                      const std::vector<const char *> &requiredExtensions) {
-    float queuePriority = 1.0f;
-    VkDeviceQueueCreateInfo queueCreateInfo = {};
-    queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-    queueCreateInfo.queueFamilyIndex =
-        0; // Assume family index 0 supports compute
-    queueCreateInfo.queueCount = 1;
-    queueCreateInfo.pQueuePriorities = &queuePriority;
+    const std::vector<const char*>& requiredExtensions,
+    Queue& graphicsQueue, Queue& computeQueue) {
+    uint32_t queueFamilyCount;
+    vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount,
+        nullptr);
+    std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
+    vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount,
+        queueFamilies.data());
+
+    uint32_t graphicsQueueFamilyIndex = -1;
+    uint32_t computeQueueFamilyIndex = -1;
+    for (uint32_t i = 0; i < queueFamilyCount; i++) {
+        if (queueFamilies[i].queueFlags & VK_QUEUE_COMPUTE_BIT) {
+            computeQueueFamilyIndex = i;
+        }
+        if (queueFamilies[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
+            graphicsQueueFamilyIndex = i;
+        }
+
+        if (graphicsQueueFamilyIndex != -1 && computeQueueFamilyIndex != -1) {
+            break;
+        }
+    }
+
+    if (computeQueueFamilyIndex == -1 || graphicsQueueFamilyIndex == -1) {
+        LOG_ERROR("Failed to find a compute or graphics queue family");
+        return nullptr;
+    }
+
+    std::vector<VkDeviceQueueCreateInfo> queueCreateInfos;
+    if (graphicsQueueFamilyIndex == computeQueueFamilyIndex) {
+        float queuePriority = 1.0f;
+
+        VkDeviceQueueCreateInfo queueCreateInfo = {};
+        queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        queueCreateInfo.queueFamilyIndex = graphicsQueueFamilyIndex;
+        queueCreateInfo.queueCount = 1;
+        queueCreateInfo.pQueuePriorities = &queuePriority;
+
+        queueCreateInfos.push_back(queueCreateInfo);
+    } else {
+        float queuePriority = 1.0f;
+
+        VkDeviceQueueCreateInfo queueCreateInfo = {};
+        queueCreateInfo.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        queueCreateInfo.queueCount = 1;
+        queueCreateInfo.pQueuePriorities = &queuePriority;
+
+        queueCreateInfo.queueFamilyIndex = graphicsQueueFamilyIndex;
+        queueCreateInfos.push_back(queueCreateInfo);
+
+        queueCreateInfo.queueFamilyIndex = computeQueueFamilyIndex;
+        queueCreateInfos.push_back(queueCreateInfo);
+    }
+
 
     VkPhysicalDeviceFeatures deviceFeatures = {};
 
     VkDeviceCreateInfo createInfo = {};
     createInfo.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-    createInfo.queueCreateInfoCount = 1;
-    createInfo.pQueueCreateInfos = &queueCreateInfo;
+    createInfo.queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size());
+    createInfo.pQueueCreateInfos = queueCreateInfos.data();
     createInfo.pEnabledFeatures = &deviceFeatures;
     createInfo.enabledExtensionCount =
         static_cast<uint32_t>(requiredExtensions.size());
@@ -210,13 +257,14 @@ VkDevice createDevice(VkPhysicalDevice physicalDevice,
 
     VkDevice device;
     VK_CHECK(vkCreateDevice(physicalDevice, &createInfo, nullptr, &device));
-    return device;
-}
 
-VkQueue getComputeQueue(VkDevice device) {
-    VkQueue computeQueue;
-    vkGetDeviceQueue(device, 0, 0, &computeQueue); // Assume family index 0
-    return computeQueue;
+    graphicsQueue.familyIndex = graphicsQueueFamilyIndex;
+    vkGetDeviceQueue(device, graphicsQueueFamilyIndex, 0, &graphicsQueue.queue);
+
+    computeQueue.familyIndex = computeQueueFamilyIndex;
+    vkGetDeviceQueue(device, computeQueueFamilyIndex, 0, &computeQueue.queue);
+
+    return device;
 }
 
 static VkCommandPool createCommandPool(VkDevice device,
@@ -268,8 +316,7 @@ VulkanManager::VulkanManager(Window &window) {
     mDebugMessenger = createDebugMessenger(mInstance);
 #endif
     mPhysicalDevice = choosePhysicalDevice(mInstance);
-    mDevice = createDevice(mPhysicalDevice, layers, deviceExtensions);
-    mComputeQueue = getComputeQueue(mDevice);
+    mDevice = createDevice(mPhysicalDevice, layers, deviceExtensions, mGraphicsQueue, mComputeQueue);
 
     mCommandPool = createCommandPool(mDevice, 0);
     mCommandBuffer = createCommandBuffer(mDevice, mCommandPool);
@@ -289,7 +336,7 @@ VulkanManager::~VulkanManager() {
     vkDestroyInstance(mInstance, nullptr);
 }
 
-void VulkanManager::SubmitCommand(std::function<void(VkCommandBuffer)> func) {
+void VulkanManager::SubmitCommand(std::function<void(VkCommandBuffer)> func, bool graphics) {
     vkResetCommandPool(mDevice, mCommandPool, 0);
 
     VkCommandBufferBeginInfo beginInfo{};
@@ -307,8 +354,8 @@ void VulkanManager::SubmitCommand(std::function<void(VkCommandBuffer)> func) {
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &mCommandBuffer;
 
-    vkQueueSubmit(mComputeQueue, 1, &submitInfo, VK_NULL_HANDLE);
-    vkQueueWaitIdle(mComputeQueue);
+    vkQueueSubmit(graphics ? mGraphicsQueue.queue : mComputeQueue.queue, 1, &submitInfo, VK_NULL_HANDLE);
+    vkQueueWaitIdle(graphics ? mGraphicsQueue.queue : mComputeQueue.queue);
 }
 
 void VulkanManager::WaitIdle() const { vkDeviceWaitIdle(mDevice); }

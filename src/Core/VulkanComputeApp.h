@@ -8,6 +8,7 @@
 #include "Vulkan/RenderPass.h"
 #include "Vulkan/Surface.h"
 #include "Vulkan/VulkanManager.h"
+#include "Vulkan/Gui.h"
 
 /**
  * @brief Base class for Vulkan compute applications.
@@ -52,6 +53,7 @@ public:
      */
     virtual void OnRender(float dt,
                           std::shared_ptr<CommandBuffer> commandBuffer) = 0;
+    virtual void OnRenderGui(float dt) = 0;
     /**
      * @brief Called once at the end of the application.
      *
@@ -61,18 +63,27 @@ public:
     virtual void OnStop() = 0;
 
 protected:
+    inline void AddEndOfFrameTask(std::function<void(const std::shared_ptr<CommandBuffer>&)> task) {
+        mEndOfFrameTasks.push_back(task);
+    }
+
     Window mWindow;
     std::shared_ptr<VulkanManager> mVulkanManager;
     std::shared_ptr<Surface> mSurface;
+    std::shared_ptr<Gui> mGui;
+
+    std::shared_ptr<Image> mRendererImage;
+    ImTextureID mRendererImageId;
 
 private:
     void Start();
     void MainLoop();
     void Stop();
 
-    std::shared_ptr<RenderPass> mRenderPass;
     std::shared_ptr<ComputePipeline> mComputePipeline;
     std::shared_ptr<CommandBuffer> mCommandBuffer;
+
+    std::vector<std::function<void(const std::shared_ptr<CommandBuffer>&)>> mEndOfFrameTasks;
 
     friend int main(int argc, char **argv);
 };

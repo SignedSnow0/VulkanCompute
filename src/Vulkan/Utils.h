@@ -5,7 +5,10 @@
 
 #include "Vulkan/VulkanManager.h"
 
-void createBuffer(const std::shared_ptr<VulkanManager> &vulkanManager,
+uint32_t findMemoryType(VkPhysicalDevice physicalDevice, uint32_t typeFilter,
+                        VkMemoryPropertyFlags properties);
+
+void createBuffer(const std::shared_ptr<VulkanManager>& vulkanManager,
                   VkDeviceSize size, VkBufferUsageFlags usage,
                   VkMemoryPropertyFlags properties, VkBuffer &buffer,
                   VkDeviceMemory &bufferMemory);

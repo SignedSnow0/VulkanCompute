@@ -22,7 +22,12 @@
         }                                                                      \
     }
 
-/**
+struct Queue {
+    uint32_t familyIndex;
+    VkQueue queue;
+};
+
+ /**
  * @brief Class managing Vulkan instance, physical device, logical device,
  * and queues.
  */
@@ -41,9 +46,8 @@ public:
         return mPhysicalDevice;
     }
     [[nodiscard]] inline VkDevice Device() const { return mDevice; }
-    [[nodiscard]] inline VkQueue ComputeQueue() const { return mComputeQueue; }
-    [[nodiscard]] inline uint32_t ComputeQueueFamilyIndex() const { return 0; }
-
+    [[nodiscard]] inline Queue GraphicsQueue() const { return mGraphicsQueue; }
+    [[nodiscard]] inline Queue ComputeQueue() const { return mComputeQueue; }
     /**
      * @brief Waits for the device to finish all operations.
      */
@@ -54,15 +58,17 @@ public:
      * @param func Function that takes a VkCommandBuffer and records commands
      * into it.
      */
-    void SubmitCommand(std::function<void(VkCommandBuffer)> func);
+    void SubmitCommand(std::function<void(VkCommandBuffer)> func, bool graphics = true);
 
 private:
     VkInstance mInstance;
     VkDebugUtilsMessengerEXT mDebugMessenger;
     VkPhysicalDevice mPhysicalDevice;
     VkDevice mDevice;
-    VkQueue mComputeQueue;
 
     VkCommandPool mCommandPool;
     VkCommandBuffer mCommandBuffer;
+
+    Queue mGraphicsQueue;
+    Queue mComputeQueue;
 };

@@ -7,10 +7,15 @@ VulkanComputeApp::VulkanComputeApp(uint32_t windowWidth, uint32_t windowHeight,
     : mWindow{windowWidth, windowHeight, windowTitle} {
     mVulkanManager = std::make_shared<VulkanManager>(mWindow);
     mSurface = std::make_shared<Surface>(mVulkanManager, mWindow,
-                                         VK_IMAGE_LAYOUT_GENERAL);
-    mRenderPass = std::make_shared<RenderPass>(mVulkanManager, mSurface);
+        VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
     mCommandBuffer =
         std::make_shared<CommandBuffer>(mVulkanManager, mSurface->ImageCount());
+    mGui = std::make_shared<Gui>(mVulkanManager, mSurface, mWindow);
+
+    mRendererImage = std::make_shared<Image>(mVulkanManager, VkExtent2D{ 1920, 1080 },
+        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        VK_FORMAT_R8G8B8A8_UNORM);
+    mRendererImageId = mGui->RegisterImage(mRendererImage);
 }
 
 VulkanComputeApp::~VulkanComputeApp() {}
@@ -26,6 +31,11 @@ void VulkanComputeApp::MainLoop() {
                        currentTime - lastTime)
                        .count();
         lastTime = currentTime;
+        
+        for (const auto& task : mEndOfFrameTasks) {
+            task(mCommandBuffer);
+        }
+        mEndOfFrameTasks.clear();
 
         mWindow.PollEvents();
         OnUpdate(dt);
@@ -33,11 +43,12 @@ void VulkanComputeApp::MainLoop() {
         uint32_t imageIndex = mSurface->WaitNextImage();
         mCommandBuffer->Begin(imageIndex);
 
-        mSurface->ChangeLayout(mCommandBuffer, VK_IMAGE_LAYOUT_GENERAL);
-
         OnRender(dt, mCommandBuffer);
 
-        mSurface->ChangeLayout(mCommandBuffer, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+        mGui->Begin(mCommandBuffer);
+        OnRenderGui(dt);
+        mGui->End(mCommandBuffer);
+
         mCommandBuffer->End();
         mSurface->SubmitCommandBuffer(mCommandBuffer, imageIndex);
     }

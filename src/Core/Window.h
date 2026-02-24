@@ -52,8 +52,12 @@ public:
      * @param key The key to check (GLFW key code).
      * @return true if the key is pressed, false otherwise.
      */
-    [[nodiscard]] bool IsKeyPressed(int key) const;
+    [[nodiscard]] bool IsKeyPressed(int key);
+    [[nodiscard]] bool IsKeyReleased(int key);
+    [[nodiscard]] bool IsKeyDown(int key);
 
 private:
-    GLFWwindow *mWindow;
+    GLFWwindow* mWindow;
+
+    bool mKeys[512]{ false };
 };

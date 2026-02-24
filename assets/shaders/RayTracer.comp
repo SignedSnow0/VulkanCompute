@@ -1,92 +1,348 @@
 #version 460
 
+const float PI = 3.14159265359f;
+const float TWO_PI = 6.28318530718f;
+const float INV_PI= 0.31830988618f;
+const float INV_TWO_PI = 0.15915494309f;
+const float EPSILON = 0.000001f;
+const float MAX_FLOAT = 3.402823466e+38f;
+const vec3 UP = vec3(0.0f, 1.0f, 0.0f);
+
 struct Ray {
-    vec3 origin;
-    vec3 direction;
+    vec3 Origin;
+    vec3 Direction;
 };
 
-struct RayHit {
-    vec3 position;
-    vec3 normal;
-    float distance;
+struct Material {
+    vec3 Color;
+    float Metalness;
+    vec3 EmissionColor;
+    float EmissionStrength;
 };
 
 struct Sphere {
-    vec3 center;
-    float radius;
-    vec3 color;
+    vec3 Position;
+    float Radius;
+    uint MaterialIndex;
 };
 
-layout(rgba8, set = 0, binding = 0) uniform image2D framebuffer;
+struct RayHit {
+    vec3 Position;
+    vec3 Normal;
+    float Distance;
+    uint MaterialIndex;
+};
 
-layout(set = 0, binding = 1) uniform Camera {
-    vec3 position;
-    vec3 forward;
-    vec3 up;
-} camera;
+struct Plane {
+    vec3 Position;
+    vec3 Normal;
+    uint MaterialIndex;
+};
 
-layout(set = 0, binding = 2) uniform Settings {
-    int debugView;
-    float time;
-} settings;
+struct BvhNode {
+    vec3 Min;
+    vec3 Max;
+    uint ChildIndex;
+    uint TriangleOffset;
+    uint TriangleCount;
+};
 
-bool intersectSphere(Ray ray, Sphere sphere, out RayHit hit) {
-    vec3 oc = ray.origin - sphere.center;
-    float a = dot(ray.direction, ray.direction);
-    float b = 2.0 * dot(oc, ray.direction);
-    float c = dot(oc, oc) - sphere.radius * sphere.radius;
-    float discriminant = b * b - 4.0 * a * c;
-    if (discriminant < 0.0) {
-        return false;
-    } else {
-        hit.distance = (-b - sqrt(discriminant)) / (2.0 * a);
-        hit.position = ray.origin + hit.distance * ray.direction;
-        hit.normal = normalize(hit.position - sphere.center);
+struct Triangle {
+    vec3 V0;
+    vec3 V1;
+    vec3 V2;
+};
 
-        return true;
-    }
+layout(binding = 0, rgba8) uniform image2D gWindow;
+
+layout(binding = 1) uniform SceneData{
+    uint NumFrames;
+    uint Seed;
+    uint MaxBounces;
+    uint MaxBvhDepth;
+} gSceneData;
+
+layout(binding = 2) uniform Camera{
+    vec3 Position;
+    vec3 Forward;
+} gCamera;
+
+layout(binding = 3) readonly buffer Spheres{
+    Sphere spheres[];
+} gSphereBuffer;
+
+layout(binding = 4) readonly buffer Planes{
+    Plane planes[];
+} gPlaneBuffer;
+
+layout(binding = 5) readonly buffer Materials{
+    Material materials[];
+} gMaterialBuffer;
+
+layout(binding = 6) readonly buffer BvhNodes{
+    BvhNode nodes[];
+} gBvhBuffer;
+
+layout(binding = 7) readonly buffer Triangles{
+    Triangle triangles[];
+} gTrianglesBuffer;
+
+float random(inout uint state) {
+    state = state * 747796405u + 2891336453u;
+    uint result = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
+    result = (result >> 22u) ^ result;
+    return float(result) / 4294967295.0f;
 }
 
-layout(local_size_x = 8, local_size_y = 8) in;
-void main()
-{
-    ivec2 pixelCoords = ivec2(gl_GlobalInvocationID.xy);
-    ivec2 imageSize = imageSize(framebuffer);
+float random(inout uint state, float min, float max) {
+    return min + (max - min) * random(state);
+}
 
-    if (pixelCoords.x >= imageSize.x || pixelCoords.y >= imageSize.y) {
-        return;
+float randomNormalDistribution(inout uint state) {
+    float theta = TWO_PI * random(state);
+    float rho= sqrt(-2.0f * log(random(state)));
+    return rho * cos(theta);
+}
+
+vec3 randomOnSphere(inout uint state) {
+    float x = randomNormalDistribution(state) * 2.0f - 1.0f;
+    float y = randomNormalDistribution(state) * 2.0f - 1.0f;
+    float z = randomNormalDistribution(state) * 2.0f - 1.0f;
+    return normalize(vec3(x,y,z));
+}
+
+vec3 randomOnHemisphere(inout uint state, vec3 normal) {
+    vec3 dir = randomOnSphere(state);
+    return dir * sign(dot(normal, dir));
+}
+
+Ray rayGen() {
+    ivec2 dimWindow = imageSize(gWindow);
+    vec3 right = normalize(cross(gCamera.Forward, UP));
+    
+    vec2 uv = gl_GlobalInvocationID.xy;
+    uv = uv / dimWindow;
+    uv = uv * 2.0f - 1.0f;
+    uv.x *= float(dimWindow.x) / dimWindow.y;
+    uv.y *= -1.0f;
+    
+    Ray ray;
+    ray.Origin = gCamera.Position;
+    ray.Direction = normalize(gCamera.Forward + uv.x * right + uv.y * UP);
+    
+    return ray;
+}
+
+bool intersectAABB(Ray ray, BvhNode aabb, out float tMin) {
+    vec3 invDir = 1.0f / ray.Direction;
+    vec3 t0s = (aabb.Min - ray.Origin) * invDir;
+    vec3 t1s = (aabb.Max - ray.Origin) * invDir;
+    
+    vec3 tSmalls = min(t0s, t1s);
+    vec3 tBigs = max(t0s, t1s);
+    
+    tMin = max(max(tSmalls.x, tSmalls.y), tSmalls.z);
+    float tMax = min(min(tBigs.x, tBigs.y), tBigs.z);
+    
+    return tMax >= max(tMin, 0.0f);
+}
+
+bool intersectTriangle(Ray ray, Triangle tri, out RayHit hit) {
+    vec3 edge1 = tri.V1 - tri.V0;
+    vec3 edge2 = tri.V2 - tri.V0;
+    vec3 rayCrossE2 = cross(ray.Direction, edge2);
+    float det = dot(edge1, rayCrossE2);
+    
+    if (det > -EPSILON && det < EPSILON) {
+        return false;
     }
 
-    vec2 uv = (vec2(pixelCoords) + vec2(0.5)) / vec2(imageSize);
-    uv = uv * 2.0 - 1.0;
-    uv.x *= float(imageSize.x) / float(imageSize.y);
-    uv.y *= -1.0;
+    float invDet = 1.0f / det;
+    vec3 s = ray.Origin - tri.V0;
+    float u = invDet * dot(s, rayCrossE2);
+    
+    if ((u < 0 && abs(u) > EPSILON) || (u > 1 && abs(u - 1) > EPSILON)) {
+        return false;
+    }
+    
+    vec3 sCrossE1 = cross(s, edge1);
+    float v = invDet * dot(ray.Direction, sCrossE1);
+    if ((v < 0 && abs(v) > EPSILON) || (u + v > 1 && abs(u + v - 1) > EPSILON)) {
+        return false;
+    }
+    
+    float t = invDet * dot(edge2, sCrossE1);
+    if (t > EPSILON) {
+        hit.Distance = t;
+        hit.Position = ray.Origin + ray.Direction * t;
+        hit.Normal = normalize(cross(edge1, edge2));
+        
+        return true;
+    }
+    
+    return false;
+}
 
-    Ray ray;
-    ray.origin = camera.position;
-    ray.direction = normalize(vec3(uv, -1.0));
+bool intersectBvh(Ray ray, out RayHit hit) {
+    hit.Distance = MAX_FLOAT;
+    hit.MaterialIndex = 0;
+    
+    int stackPointer = 0;
+    uint stack[32];
+    stack[stackPointer++] = 0;
+    
+    bool hitSomething = false;
+    while (stackPointer > 0) {
+        BvhNode node = gBvhBuffer.nodes[stack[--stackPointer]];
+        float distance;
+        if (intersectAABB(ray, node, distance)) {
+            if (node.ChildIndex == 0) {
+                for (uint i = node.TriangleOffset; i < node.TriangleOffset + node.TriangleCount; i++) {
+                    Triangle tri = gTrianglesBuffer.triangles[i];
+                    RayHit currentHit;
+                    if (intersectTriangle(ray, tri, currentHit) && 
+                        currentHit.Distance < hit.Distance) {
+                        hit = currentHit;
+                        hitSomething = true;
+                    }
+                }
+            } else {
+                float distA, distB;
+                intersectAABB(ray, gBvhBuffer.nodes[node.ChildIndex], distA);
+                intersectAABB(ray, gBvhBuffer.nodes[node.ChildIndex + 1], distB);
+                
+                if (distA < distB) {
+                    if (distB < hit.Distance) {
+                        stack[stackPointer++] = node.ChildIndex + 1;
+                    }
+                    if (distA < hit.Distance){
+                        stack[stackPointer++] = node.ChildIndex;
+                    }
+                } else {
+                    if (distA < hit.Distance) {
+                        stack[stackPointer++] = node.ChildIndex;
+                    }
+                    if(distB < hit.Distance) {
+                        stack[stackPointer++] = node.ChildIndex + 1;
+                    }
+                }
+            }
+        }
+    }
+    
+    return hitSomething;
+}
 
-    Sphere sphere;
-    sphere.center = vec3(0.0, 0.0, -3.0);
-    sphere.radius = 1.0;
-    sphere.color = vec3(1.0, 0.0, 0.0);
+bool intersectSphere(Ray ray, Sphere sphere, out RayHit hit) {
+    vec3 positionOffset = ray.Origin - sphere.Position;
+    float a = dot(ray.Direction, ray.Direction);
+    float b = 2.0f * dot(positionOffset, ray.Direction);
+    float c = dot(positionOffset, positionOffset) - sphere.Radius * sphere.Radius;
+    float discriminant = b * b - 4 * a * c;
+    
+    if (discriminant >= 0) {
+        hit.Distance = (-b - sqrt(discriminant)) / (2 * a);
+        hit.Position = ray.Origin + ray.Direction * hit.Distance;
+        hit.Normal = normalize(hit.Position - sphere.Position);
+        hit.MaterialIndex = sphere.MaterialIndex;
+        
+        return hit.Distance >= 0;
+    }
+    
+    return false;
+}
 
-    vec3 pixelColor = vec3(0.5, 0.7, 1.0);
+bool intersectPlane(Ray ray, Plane plane, out RayHit hit) {
+    float denominator = dot(plane.Normal, ray.Direction);
+    if (abs(denominator) > EPSILON) {
+        float t = dot(plane.Position-ray.Origin,plane.Normal) / denominator;
+        if (t>=0) {
+            hit.Distance = t;
+            hit.Position = ray.Origin + ray.Direction * hit.Distance;
+            hit.Normal = plane.Normal;
+            hit.MaterialIndex = plane.MaterialIndex;
+            
+            return true;
+        }
+    }
+    return false;
+}
 
-    vec3 lightDir = normalize(vec3(-0.5, 1.0, 0.5));
+bool closestHit(Ray ray, out RayHit hit) {
+    hit.Distance = MAX_FLOAT;
+    bool hitSomething = false;
+    RayHit currentHit;
+    
+    for (int i = 0; i < gSphereBuffer.spheres.length(); i++) {
+        if (intersectSphere(ray, gSphereBuffer.spheres[i], currentHit) && 
+            currentHit.Distance < hit.Distance) {
+            hit = currentHit;
+            hitSomething = true;
+        }
+    }
+    
+    for (int i = 0; i < gPlaneBuffer.planes.length(); i++) {
+        if (intersectPlane(ray, gPlaneBuffer.planes[i], currentHit) && 
+            currentHit.Distance < hit.Distance) {
+            hit = currentHit;
+            hitSomething = true;
+        }
+    }
+    
+    if (intersectBvh(ray, currentHit) && 
+        currentHit.Distance < hit.Distance) {
+        hit = currentHit;
+        hitSomething = true;
+    }
+    
+    return hitSomething;
+}
 
+vec3 trace() {
+    vec3 result = vec3(0,0,0);
+    vec3 rayColor = vec3(1,1,1);
+    uint state = gl_GlobalInvocationID.x * gl_GlobalInvocationID.y * gSceneData.Seed;
+    
+    Ray ray = rayGen();
     RayHit hit;
-    if (intersectSphere(ray, sphere, hit)) {
-        float diffuse = max(dot(hit.normal, lightDir), 0.0);
-        pixelColor = sphere.color * diffuse * (sin(settings.time) * 0.5 + 0.5);
-
-        if (settings.debugView == 1) {
-            pixelColor = hit.normal * 0.5 + 0.5;
-        } else if (settings.debugView == 2) {
-            float depth = hit.distance / 10.0;
-            pixelColor = vec3(depth);
+    for (int i = 0; i <= gSceneData.MaxBounces; i++) {
+        if (closestHit(ray, hit)) {
+            Material hitMaterial = gMaterialBuffer.materials[hit.MaterialIndex];
+            
+            ray.Origin = hit.Position + EPSILON * hit.Normal;
+            
+            vec3 diffuseDirection = normalize(hit.Normal + randomOnHemisphere(state, hit.Normal));
+            vec3 specularDirection = reflect(ray.Direction, hit.Normal);
+            ray.Direction = mix(diffuseDirection, specularDirection, hitMaterial.Metalness);
+            
+            vec3 emittedLight = hitMaterial.EmissionColor * hitMaterial.EmissionStrength;
+            result += emittedLight * rayColor;
+            rayColor *= hitMaterial.Color * dot(hit.Normal, ray.Direction);
+        } else {
+            result += vec3(0.5f, 0.7f, 1.0f) * rayColor;
+            break;
         }
     }
 
-    imageStore(framebuffer, pixelCoords, vec4(pixelColor, 1.0));
+    return result;
+}
+
+layout(local_size_x = 8, local_size_y = 8) in;
+void main() {
+    ivec2 dimWindow = imageSize(gWindow);
+    if (gl_GlobalInvocationID.x >= dimWindow.x || 
+        gl_GlobalInvocationID.y >= dimWindow.y) {
+        return;
+    }
+    
+    vec3 result = trace();
+    
+    if (gSceneData.NumFrames > 3) {
+        float weight = 1.0f / (gSceneData.NumFrames + 1);
+        vec3 previousColor = imageLoad(gWindow, ivec2(gl_GlobalInvocationID.xy)).rgb;
+        result = mix(previousColor, result, weight);
+        imageStore(gWindow, ivec2(gl_GlobalInvocationID.xy), vec4(result, 1));
+    } else {
+        imageStore(gWindow, ivec2(gl_GlobalInvocationID.xy), vec4(result, 1));
+    }
 }

@@ -12,7 +12,7 @@
 class Image {
 public:
     Image(const std::shared_ptr<VulkanManager> &vulkanManager,
-          VkExtent2D extent);
+          VkExtent2D extent, VkImageUsageFlags usage, VkFormat format, VkImageLayout initialLayout = VK_IMAGE_LAYOUT_GENERAL);
     ~Image();
 
     [[nodiscard]] inline VkImageView ImageView() const { return mImageView; }
@@ -35,4 +35,8 @@ private:
     VkImageView mImageView;
     VkSampler mSampler;
     VkImageLayout mLayout;
+    VkImageUsageFlags mUsage;
+    VkFormat mFormat;
+    VkDeviceMemory mImageMemory;
+
 };

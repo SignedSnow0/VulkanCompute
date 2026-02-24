@@ -129,7 +129,7 @@ void createSyncObjects(VkDevice device,
     }
 }
 
-std::vector<VkSampler> CreateSamplers(VkDevice device, uint32_t count) {
+std::vector<VkSampler> createSamplers(VkDevice device, uint32_t count) {
     std::vector<VkSampler> samplers;
     samplers.resize(count);
 
@@ -152,7 +152,7 @@ std::vector<VkSampler> CreateSamplers(VkDevice device, uint32_t count) {
     samplerInfo.maxLod = 0.0f;
 
     for (uint32_t i = 0; i < count; i++) {
-        vkCreateSampler(device, &samplerInfo, nullptr, &samplers[i]);
+        VK_CHECK(vkCreateSampler(device, &samplerInfo, nullptr, &samplers[i]));
     }
     return samplers;
 }
@@ -172,7 +172,7 @@ Surface::Surface(const std::shared_ptr<VulkanManager> &vulkanManager,
     mSwapchainImageViews =
         createImageViews(mVulkanManager->Device(), mSwapchainImages, mFormat);
     mSamplers =
-        CreateSamplers(mVulkanManager->Device(), mSwapchainImages.size());
+        createSamplers(mVulkanManager->Device(), mSwapchainImages.size());
 
     createSyncObjects(mVulkanManager->Device(), mImageAvailableSemaphores,
                       mRenderFinishedSemaphores, mInFlightFences,
@@ -240,7 +240,7 @@ void Surface::SubmitCommandBuffer(
     submitInfo.commandBufferCount = 1;
     submitInfo.pCommandBuffers = &cmdBuffer;
 
-    VK_CHECK(vkQueueSubmit(mVulkanManager->ComputeQueue(), 1, &submitInfo,
+    VK_CHECK(vkQueueSubmit(mVulkanManager->GraphicsQueue().queue, 1, &submitInfo,
                            mInFlightFences[mCurrentFrame]));
 
     VkPresentInfoKHR presentInfo = {};
@@ -252,9 +252,9 @@ void Surface::SubmitCommandBuffer(
     presentInfo.swapchainCount = 1;
     presentInfo.pSwapchains = swapChains;
     presentInfo.pImageIndices = &commandBufferIndex;
-    presentInfo.pResults = nullptr; // Optional
+    presentInfo.pResults = nullptr;
 
-    VK_CHECK(vkQueuePresentKHR(mVulkanManager->ComputeQueue(), &presentInfo));
+    VK_CHECK(vkQueuePresentKHR(mVulkanManager->GraphicsQueue().queue, &presentInfo));
 
     mCurrentFrame = (mCurrentFrame + 1) % mSwapchainImages.size();
 }
