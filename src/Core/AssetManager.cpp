@@ -6,15 +6,52 @@
 
 #include "Core/Logger.h"
 
-std::shared_ptr<Mesh> processMesh(const aiScene *scene, const aiMesh *mesh, const glm::mat4& modelMatrix) {
+std::shared_ptr<Mesh> AssetManager::LoadMesh(const std::string& filepath, const glm::mat4& modelMatrix) {
+    Assimp::Importer importer;
+
+    const aiScene *scene = importer.ReadFile(
+        filepath, aiProcess_GenSmoothNormals | aiProcess_PreTransformVertices | 
+        aiProcess_JoinIdenticalVertices | aiProcess_Triangulate);
+
+    if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE ||
+        !scene->mMeshes) {
+        LOG_WARNING("Failed to load mesh: {}", importer.GetErrorString());
+        return nullptr;
+    }
+
+    auto newMesh = std::make_shared<Mesh>();
+    ProcessNode(scene, scene->mRootNode, newMesh.get(), modelMatrix);
+
+    return newMesh;
+}
+
+void AssetManager::ProcessNode(const aiScene *scene, const aiNode *node,
+    Mesh* outMesh, const glm::mat4& modelMatrix) {
+    std::vector<Triangle> triangles;
+    for (uint32_t i = 0; i < node->mNumMeshes; i++) {
+        aiMesh *mesh = scene->mMeshes[node->mMeshes[i]];
+        auto meshTriangles = AssetManager::ProcessMesh(scene, mesh, modelMatrix);
+        triangles.insert(triangles.end(), meshTriangles.begin(), meshTriangles.end());
+    }
+    outMesh->mTriangles = std::move(triangles);
+
+    for (uint32_t i = 0; i < node->mNumChildren; i++) {
+        auto subMesh = Mesh();
+        AssetManager::ProcessNode(scene, node->mChildren[i], &subMesh, modelMatrix);
+        outMesh->subMeshes.push_back(std::move(subMesh));
+    }
+}
+
+std::vector<Triangle> AssetManager::ProcessMesh(const aiScene* scene,
+                                                const aiMesh* mesh,
+                                                const glm::mat4& modelMatrix) {
     std::vector<Vertex> vertices;
     std::vector<uint32_t> indices;
 
     vertices.reserve(mesh->mNumVertices);
-    indices.reserve(mesh->mNumFaces * 3);
 
-    LOG_DEBUG("Processing mesh with {} vertices and {} indices",
-              mesh->mNumVertices, mesh->mNumFaces * 3);
+    LOG_DEBUG("Processing mesh with {} vertices",
+              mesh->mNumVertices);
 
     for (uint32_t i = 0; i < mesh->mNumVertices; i++) {
         Vertex vertex{};
@@ -24,7 +61,7 @@ std::shared_ptr<Mesh> processMesh(const aiScene *scene, const aiMesh *mesh, cons
 
         vertex.position = glm::vec3(modelMatrix * glm::vec4(vertex.position, 1.0f));
         vertex.normal = glm::vec3(modelMatrix * glm::vec4(mesh->mNormals[i].x, mesh->mNormals[i].y,
-                                  mesh->mNormals[i].z, 0.0f));
+            mesh->mNormals[i].z, 0.0f));
 
         if (mesh->mTextureCoords[0]) {
             vertex.uv = glm::vec2(mesh->mTextureCoords[0][i].x,
@@ -43,63 +80,15 @@ std::shared_ptr<Mesh> processMesh(const aiScene *scene, const aiMesh *mesh, cons
         }
     }
 
-    return std::make_shared<Mesh>(vertices, indices);
-}
-
-void processNode(const aiScene *scene, const aiNode *node,
-                 std::shared_ptr<Scene> &outScene, const glm::mat4& modelMatrix) {
-    for (uint32_t i = 0; i < node->mNumMeshes; i++) {
-        aiMesh *mesh = scene->mMeshes[node->mMeshes[i]];
-        auto processedMesh = processMesh(scene, mesh, modelMatrix);
-        outScene->AddMesh(processedMesh);
+    std::vector<Triangle> triangles;
+    triangles.reserve(indices.size() / 3);
+    for (size_t i = 0; i < indices.size(); i += 3) {
+        Triangle tri;
+        tri.V0 = vertices[indices[i]].position;
+        tri.V1 = vertices[indices[i + 1]].position;
+        tri.V2 = vertices[indices[i + 2]].position;
+        triangles.push_back(tri);
     }
 
-    for (uint32_t i = 0; i < node->mNumChildren; i++) {
-        processNode(scene, node->mChildren[i], outScene, modelMatrix);
-    }
-}
-
-MeshRenderer::MeshRenderer(const std::shared_ptr<VulkanManager> &vulkanManager,
-                           const std::shared_ptr<Mesh> &mesh)
-    : mVulkanManager(vulkanManager), mMesh(mesh) {
-    mVertexBuffer = std::make_unique<Buffer<Vertex>>(
-        mVulkanManager, mMesh->mVertices.data(),
-        mMesh->mVertices.size() * sizeof(Vertex),
-        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-
-    mIndexBuffer = std::make_unique<Buffer<uint32_t>>(
-        mVulkanManager, mMesh->mIndices.data(),
-        mMesh->mIndices.size() * sizeof(uint32_t),
-        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-}
-
-Mesh::Mesh(std::vector<Vertex> vertices, std::vector<uint32_t> indices)
-    : mVertices(std::move(vertices)), mIndices(std::move(indices)) {}
-
-std::shared_ptr<Scene> AssetManager::LoadScene(const std::string &filepath, const glm::mat4& modelMatrix) {
-    Assimp::Importer importer;
-
-    const aiScene *scene = importer.ReadFile(
-        filepath, aiProcess_GenSmoothNormals | aiProcess_PreTransformVertices | 
-        aiProcess_JoinIdenticalVertices | aiProcess_Triangulate);
-
-    if (!scene || scene->mFlags & AI_SCENE_FLAGS_INCOMPLETE ||
-        !scene->mMeshes) {
-        LOG_WARNING("Failed to load model: {}", importer.GetErrorString());
-        return nullptr;
-    }
-
-    auto newScene = std::make_shared<Scene>();
-
-    for (uint32_t i = 0; i < scene->mNumMeshes; i++) {
-        aiMesh *mesh = scene->mMeshes[i];
-        auto processedMesh = processMesh(scene, mesh, modelMatrix);
-        newScene->AddMesh(processedMesh);
-    }
-
-    return newScene;
-}
-
-void Scene::AddMesh(const std::shared_ptr<Mesh> &mesh) {
-    mMeshes.push_back(mesh);
+    return triangles;
 }

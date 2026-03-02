@@ -14,7 +14,7 @@
 /**
  * @brief Enumeration of shader stages.
  */
-enum ShaderStage { Vertex, Fragment, Compute };
+enum class ShaderStage { Vertex, Fragment, Compute };
 
 /**
  * @brief Class representing a Vulkan shader.
@@ -64,7 +64,7 @@ public:
      * to.
      */
     template <typename T>
-    void BindBuffer(const Buffer<T> &buffer, uint32_t binding,
+    void BindStorageBuffer(const StorageBuffer<T> &buffer, uint32_t binding,
                     uint32_t frameIndex) {
         VkDescriptorBufferInfo bufferInfo = {};
         bufferInfo.buffer = buffer.GetBuffer();
@@ -94,7 +94,7 @@ public:
      * to.
      */
     template <typename T>
-    void BindBuffer(const Buffer<T> &buffer, const std::string &name,
+    void BindStorageBuffer(const StorageBuffer<T> &buffer, const std::string &name,
                     uint32_t frameIndex) {
         auto it = mBindingMap.find(name);
         if (it == mBindingMap.end()) {
@@ -103,7 +103,7 @@ public:
             return;
         }
 
-        BindBuffer(buffer, it->second, frameIndex);
+        BindStorageBuffer(buffer, it->second, frameIndex);
     }
 
     /**

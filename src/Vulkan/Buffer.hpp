@@ -88,8 +88,8 @@ public:
         vkUnmapMemory(mVulkanManager->Device(), mMemory);
     }
 
-    VkBuffer GetBuffer() const { return mBuffer; }
-    VkDeviceSize Size() const { return mSize; }
+    [[nodiscard]] inline VkBuffer GetBuffer() const { return mBuffer; }
+    [[nodiscard]] inline VkDeviceSize Size() const { return mSize; }
 
 private:
     VkBuffer mBuffer;
@@ -104,7 +104,8 @@ private:
  * This class manages a Vulkan buffer specifically intended for use as a
  * uniform buffer (specified in glsl using the keyword "uniform").
  */
-template <typename T> class UniformBuffer {
+template <typename T>
+class UniformBuffer {
 public:
     /**
      * @brief Constructs a Vulkan uniform buffer.
@@ -139,8 +140,54 @@ public:
         vkUnmapMemory(mVulkanManager->Device(), mMemory);
     }
 
-    VkBuffer Buffer() const { return mBuffer; }
-    VkDeviceSize Size() const { return mSize; }
+    [[nodiscard]] inline VkBuffer Buffer() const { return mBuffer; }
+    [[nodiscard]] inline VkDeviceSize Size() const { return mSize; }
+
+private:
+    VkBuffer mBuffer;
+    VkDeviceMemory mMemory;
+    VkDeviceSize mSize;
+    std::shared_ptr<VulkanManager> mVulkanManager;
+};
+
+template <typename T>
+class StorageBuffer {
+public:
+    StorageBuffer(const std::shared_ptr<VulkanManager> &vulkanManager, const T* data, size_t size)
+        : mVulkanManager(vulkanManager), mSize(sizeof(T) * size) {
+        VkBuffer stagingBuffer;
+        VkDeviceMemory stagingBufferMemory;
+        createBuffer(vulkanManager, mSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+                     VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                         VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                     stagingBuffer, stagingBufferMemory);
+
+        void *mappedData;
+        vkMapMemory(mVulkanManager->Device(), stagingBufferMemory, 0, mSize, 0,
+                    &mappedData);
+        memcpy(mappedData, data, static_cast<size_t>(mSize));
+        vkUnmapMemory(mVulkanManager->Device(), stagingBufferMemory);
+
+        createBuffer(mVulkanManager, mSize,
+                     VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                     VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                     VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, mBuffer, mMemory);
+
+        copyBuffer(mVulkanManager, stagingBuffer, mBuffer, mSize);
+
+        mVulkanManager->WaitIdle();
+
+        vkDestroyBuffer(mVulkanManager->Device(), stagingBuffer, nullptr);
+        vkFreeMemory(mVulkanManager->Device(), stagingBufferMemory, nullptr);
+    }
+
+    ~StorageBuffer() {
+        vkDestroyBuffer(mVulkanManager->Device(), mBuffer, nullptr);
+        vkFreeMemory(mVulkanManager->Device(), mMemory, nullptr);
+    }
+
+    [[nodiscard]] inline VkBuffer GetBuffer() const { return mBuffer; }
+    [[nodiscard]] inline VkDeviceSize Size() const { return mSize; }
 
 private:
     VkBuffer mBuffer;

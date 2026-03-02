@@ -21,37 +21,39 @@ RayTracerApp::RayTracerApp()
     mPipeline = std::make_shared<ComputePipeline>(mVulkanManager, mShader);
     mCamera = std::make_shared<UniformBuffer<Camera>>(mVulkanManager);
     mSceneDataBuffer = std::make_shared<UniformBuffer<SceneData>>(mVulkanManager);
+    mScene = std::make_shared<Scene>(mVulkanManager, mShader);
 }
 
 RayTracerApp::~RayTracerApp() = default;
 
 void RayTracerApp::OnStart() {
-    glm::vec3 translation = glm::vec3(0, .3, 0);
-    glm::vec3 rotation = glm::vec3(0, 90, 0);
-    glm::vec3 scale = glm::vec3(1);
-
-    glm::mat4 modelMatrix = glm::translate(glm::mat4(1.0f), translation) * glm::toMat4(glm::quat{ glm::radians(rotation) }) * glm::scale(glm::mat4(1.0f), scale);
-    mScene = AssetManager::LoadScene("assets/models/Dragon_80K.obj", modelMatrix);
-    for (auto& mesh : mScene->GetMeshes()) {
-        BvhBuilder builder(mesh, sMaxBvhDepth);
-        builder.Build();
-        mBvhRenderer = std::make_unique<BvhRenderer>(mVulkanManager, builder);
-    }
-
     Material meshMaterial;
     meshMaterial.color = { 1, .64, .22 };
     meshMaterial.emission_color = { 0, 0, 0, 0};
     meshMaterial.metalness = .4;
-    mMaterials.push_back(meshMaterial);
+
+    glm::vec3 translation = glm::vec3(.5, .3, 0);
+    glm::vec3 rotation = glm::vec3(0, 90, 0);
+    glm::vec3 scale = glm::vec3(1);
+
+    glm::mat4 modelMatrix = glm::translate(glm::mat4(1.0f), translation) *
+                  glm::toMat4(glm::quat{ glm::radians(rotation) }) *
+                  glm::scale(glm::mat4(1.0f), scale);
+    
+    mScene->AddModel(Model("assets/models/Dragon_80K.obj", meshMaterial, modelMatrix));
+
+    translation = glm::vec3(-.5, 0, 0);
+    rotation = glm::vec3(90, 0, 0);
+    scale = glm::vec3(3.5);
+
+    modelMatrix = glm::translate(glm::mat4(1.0f), translation) *
+                            glm::toMat4(glm::quat{ glm::radians(rotation) }) *
+                            glm::scale(glm::mat4(1.0f), scale);
+
+
+    mScene->AddModel(Model("assets/models/bunny.obj", meshMaterial, modelMatrix));
 
     BuildScene();
-
-    mSpheresBuffer = std::make_shared<Buffer<Sphere>>(
-        mVulkanManager, mSpheres.data(), sizeof(Sphere) * mSpheres.size(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-    mPlanesBuffer = std::make_shared<Buffer<Plane>>(
-        mVulkanManager, mPlanes.data(), sizeof(Plane) * mPlanes.size(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-    mMaterialsBuffer = std::make_shared<Buffer<Material>>(
-        mVulkanManager, mMaterials.data(), sizeof(Material) * mMaterials.size(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 }
 
 void RayTracerApp::OnUpdate(float dt) {
@@ -110,27 +112,18 @@ void RayTracerApp::OnUpdate(float dt) {
 
 void RayTracerApp::OnRender(float dt,
                             std::shared_ptr<CommandBuffer> commandBuffer) {
-    mShader->BindImage(*mRendererImage, "gWindow",
+    mShader->BindImage(*mRendererImage, "window",
         commandBuffer->CurrentBufferIndex());
     
     mShader->BindUniformBuffer(
-        *mSceneDataBuffer, "gSceneData",
+        *mSceneDataBuffer, "sceneData",
         commandBuffer
             ->CurrentBufferIndex());
 
     mShader->BindUniformBuffer(
-        *mCamera, "gCamera", commandBuffer->CurrentBufferIndex());
+        *mCamera, "camera", commandBuffer->CurrentBufferIndex());
 
-    mShader->BindBuffer(*mSpheresBuffer, "gSphereBuffer",
-                        commandBuffer->CurrentBufferIndex());
-    
-    mShader->BindBuffer(*mPlanesBuffer, "gPlaneBuffer",
-                        commandBuffer->CurrentBufferIndex());
-
-    mShader->BindBuffer(*mMaterialsBuffer, "gMaterialBuffer",
-        commandBuffer->CurrentBufferIndex());
-
-    mBvhRenderer->Render(commandBuffer, mShader);
+    mScene->Draw(commandBuffer);
 
     mPipeline->Dispatch(commandBuffer, (mRendererImage->Extent().width + 7) / 8,
                         (mRendererImage->Extent().height + 7) / 8, 1);
@@ -171,15 +164,8 @@ void RayTracerApp::RenderSettings() {
         int id = 0;
 
         if (ImGui::TreeNode("Spheres")) {
-            if (EntityView::DrawSpheres(mSpheres, mMaterials)) {
-                AddEndOfFrameTask([this](const std::shared_ptr<CommandBuffer>& commandBuffer) {
-                    mSpheresBuffer = std::make_unique<Buffer<Sphere>>(
-                        mVulkanManager, mSpheres.data(), sizeof(Sphere) * mSpheres.size(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-
-                    mMaterialsBuffer = std::make_unique<Buffer<Material>>(
-                        mVulkanManager, mMaterials.data(), sizeof(Material) * mMaterials.size(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-
-                    });
+            if (EntityView::DrawSpheres(mScene->Spheres(), mScene->Materials())) {
+                
 
                 mSceneData.numFrames = 0;
             }
@@ -188,16 +174,7 @@ void RayTracerApp::RenderSettings() {
 
 
         if (ImGui::TreeNode("Planes")) {
-            if (EntityView::DrawPlanes(mPlanes, mMaterials)) {
-                AddEndOfFrameTask([this](const std::shared_ptr<CommandBuffer>& commandBuffer) {
-                    mPlanesBuffer = std::make_unique<Buffer<Plane>>(
-                        mVulkanManager, mPlanes.data(), sizeof(Plane) * mPlanes.size(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-
-                    mMaterialsBuffer = std::make_unique<Buffer<Material>>(
-                        mVulkanManager, mMaterials.data(), sizeof(Material) * mMaterials.size(), VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
-
-                    });
-
+            if (EntityView::DrawPlanes(mScene->Planes(), mScene->Materials())) {
                 mSceneData.numFrames = 0;
             }
             ImGui::TreePop();
@@ -210,74 +187,74 @@ void RayTracerApp::BuildScene() {
     Plane boxPlane;
     boxPlane.position = { 0, 0, 0 };
     boxPlane.normal = { 0, 1, 0 };
-    boxPlane.materialIndex = mMaterials.size();
-    mPlanes.push_back(boxPlane);
+    boxPlane.materialIndex = mScene->Materials().size();
+    mScene->AddPlane(boxPlane);
 
     Material material;
     material.color = { .89, .85, .79 };
     material.emission_color = { 0, 0, 0, 0 };
     material.metalness = 0;
-    mMaterials.push_back(material);
+    mScene->AddMaterial(material);
 
     boxPlane.position = { -1, 0, 0 };
     boxPlane.normal = { 1, 0, 0 };
-    boxPlane.materialIndex = mMaterials.size();
-    mPlanes.push_back(boxPlane);
+    boxPlane.materialIndex = mScene->Materials().size();
+    mScene->AddPlane(boxPlane);
 
     material.color = { 1, 0, 0 };
     material.emission_color = { 0, 0, 0, 0 };
     material.metalness = 0;
-    mMaterials.push_back(material);
+    mScene->AddMaterial(material);
 
     boxPlane.position = { 1, 0, 0 };
     boxPlane.normal = { -1, 0, 0 };
-    boxPlane.materialIndex = mMaterials.size();
-    mPlanes.push_back(boxPlane);
+    boxPlane.materialIndex = mScene->Materials().size();
+    mScene->AddPlane(boxPlane);
 
     material.color = { 0, 1, 0 };
     material.emission_color = { 0, 0, 0, 0 };
     material.metalness = 0;
-    mMaterials.push_back(material);
+    mScene->AddMaterial(material);
 
     boxPlane.position = { 0, 0, -1 };
     boxPlane.normal = { 0, 0, 1 };
-    boxPlane.materialIndex = mMaterials.size();
-    mPlanes.push_back(boxPlane);
+    boxPlane.materialIndex = mScene->Materials().size();
+    mScene->AddPlane(boxPlane);
 
     material.color = { .89, .85, .79 };
     material.emission_color = { 0, 0, 0, 0 };
     material.metalness = 0;
-    mMaterials.push_back(material);
+    mScene->AddMaterial(material);
 
     boxPlane.position = { 0, 0, 1 };
     boxPlane.normal = { 0, 0, -1 };
-    boxPlane.materialIndex = mMaterials.size();
-    mPlanes.push_back(boxPlane);
+    boxPlane.materialIndex = mScene->Materials().size();
+    mScene->AddPlane(boxPlane);
 
     material.color = { .89, .85, .79 };
     material.emission_color = { 0, 0, 0, 0 };
     material.metalness = 0;
-    mMaterials.push_back(material);
+    mScene->AddMaterial(material);
 
     boxPlane.position = { 0, 2, 0 };
     boxPlane.normal = { 0, -1, 0 };
-    boxPlane.materialIndex = mMaterials.size();
-    mPlanes.push_back(boxPlane);
+    boxPlane.materialIndex = mScene->Materials().size();
+    mScene->AddPlane(boxPlane);
 
     material.color = { .89, .85, .79 };
     material.emission_color = { 0, 0, 0, 0 };
     material.metalness = 0;
-    mMaterials.push_back(material);
+    mScene->AddMaterial(material);
 
     Sphere sphere;
     sphere.position = { 0, 2, 0 };
     sphere.radius = .5;
-    sphere.materialIndex = mMaterials.size();
-    mSpheres.push_back(sphere);
+    sphere.materialIndex = mScene->Materials().size();
+    mScene->AddSphere(sphere);
 
     Material sphereMaterial;
     sphereMaterial.color = { 1, 1, 1 };
     sphereMaterial.emission_color = { 1, 1, 1, 1 };
     sphereMaterial.metalness = 0;
-    mMaterials.push_back(sphereMaterial);
+    mScene->AddMaterial(sphereMaterial);
 }

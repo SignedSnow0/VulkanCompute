@@ -31,3 +31,9 @@ struct Plane {
     alignas(16) glm::vec3 normal;
     uint32_t materialIndex;
 };
+
+struct Triangle {
+    alignas(16) glm::vec3 V0;
+    alignas(16) glm::vec3 V1;
+    alignas(16) glm::vec3 V2;
+};

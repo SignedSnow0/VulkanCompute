@@ -53,39 +53,49 @@ struct Triangle {
     vec3 V2;
 };
 
-layout(binding = 0, rgba8) uniform image2D gWindow;
+struct Model {
+    uint TriangleOffset;
+    uint BvhOffset;
+    uint MaterialIndex;
+};
 
-layout(binding = 1) uniform SceneData{
+layout(binding = 0, rgba8) uniform image2D window;
+
+layout(binding = 1) uniform SceneData {
     uint NumFrames;
     uint Seed;
     uint MaxBounces;
     uint MaxBvhDepth;
-} gSceneData;
+} sceneData;
 
-layout(binding = 2) uniform Camera{
+layout(binding = 2) uniform Camera {
     vec3 Position;
     vec3 Forward;
-} gCamera;
+} camera;
 
-layout(binding = 3) readonly buffer Spheres{
+layout(binding = 3) readonly buffer SpheresBuffer {
     Sphere spheres[];
-} gSphereBuffer;
+} spheresBuffer;
 
-layout(binding = 4) readonly buffer Planes{
+layout(binding = 4) readonly buffer PlanesBuffer {
     Plane planes[];
-} gPlaneBuffer;
+} planesBuffer;
 
-layout(binding = 5) readonly buffer Materials{
+layout(binding = 5) readonly buffer MaterialsBuffer {
     Material materials[];
-} gMaterialBuffer;
+} materialsBuffer;
 
-layout(binding = 6) readonly buffer BvhNodes{
+layout(binding = 6) readonly buffer BvhNodesBuffer {
     BvhNode nodes[];
-} gBvhBuffer;
+} bvhNodesBuffer;
 
-layout(binding = 7) readonly buffer Triangles{
+layout(binding = 7) readonly buffer TrianglesBuffer {
     Triangle triangles[];
-} gTrianglesBuffer;
+} trianglesBuffer;
+
+layout(binding = 8) readonly buffer ModelsBuffer {
+    Model models[];
+} modelsBuffer;
 
 float random(inout uint state) {
     state = state * 747796405u + 2891336453u;
@@ -117,8 +127,8 @@ vec3 randomOnHemisphere(inout uint state, vec3 normal) {
 }
 
 Ray rayGen() {
-    ivec2 dimWindow = imageSize(gWindow);
-    vec3 right = normalize(cross(gCamera.Forward, UP));
+    ivec2 dimWindow = imageSize(window);
+    vec3 right = normalize(cross(camera.Forward, UP));
     
     vec2 uv = gl_GlobalInvocationID.xy;
     uv = uv / dimWindow;
@@ -127,8 +137,8 @@ Ray rayGen() {
     uv.y *= -1.0f;
     
     Ray ray;
-    ray.Origin = gCamera.Position;
-    ray.Direction = normalize(gCamera.Forward + uv.x * right + uv.y * UP);
+    ray.Origin = camera.Position;
+    ray.Direction = normalize(camera.Forward + uv.x * right + uv.y * UP);
     
     return ray;
 }
@@ -183,47 +193,49 @@ bool intersectTriangle(Ray ray, Triangle tri, out RayHit hit) {
     return false;
 }
 
-bool intersectBvh(Ray ray, out RayHit hit) {
+bool intersectBvh(Ray ray, Model model, out RayHit hit) {
     hit.Distance = MAX_FLOAT;
-    hit.MaterialIndex = 0;
     
     int stackPointer = 0;
     uint stack[32];
-    stack[stackPointer++] = 0;
+    stack[stackPointer++] = model.BvhOffset;
     
     bool hitSomething = false;
     while (stackPointer > 0) {
-        BvhNode node = gBvhBuffer.nodes[stack[--stackPointer]];
+        BvhNode node = bvhNodesBuffer.nodes[stack[--stackPointer]];
         float distance;
         if (intersectAABB(ray, node, distance)) {
             if (node.ChildIndex == 0) {
-                for (uint i = node.TriangleOffset; i < node.TriangleOffset + node.TriangleCount; i++) {
-                    Triangle tri = gTrianglesBuffer.triangles[i];
+                for (uint i = node.TriangleOffset + model.TriangleOffset; 
+                     i < model.TriangleOffset + node.TriangleOffset + node.TriangleCount; 
+                     i++) {
+                    Triangle tri = trianglesBuffer.triangles[i];
                     RayHit currentHit;
                     if (intersectTriangle(ray, tri, currentHit) && 
                         currentHit.Distance < hit.Distance) {
                         hit = currentHit;
+                        hit.MaterialIndex = model.MaterialIndex;
                         hitSomething = true;
                     }
                 }
             } else {
                 float distA, distB;
-                intersectAABB(ray, gBvhBuffer.nodes[node.ChildIndex], distA);
-                intersectAABB(ray, gBvhBuffer.nodes[node.ChildIndex + 1], distB);
+                intersectAABB(ray, bvhNodesBuffer.nodes[node.ChildIndex + model.BvhOffset], distA);
+                intersectAABB(ray, bvhNodesBuffer.nodes[node.ChildIndex + 1 + model.BvhOffset], distB);
                 
                 if (distA < distB) {
                     if (distB < hit.Distance) {
-                        stack[stackPointer++] = node.ChildIndex + 1;
+                        stack[stackPointer++] = node.ChildIndex + 1 + model.BvhOffset;
                     }
                     if (distA < hit.Distance){
-                        stack[stackPointer++] = node.ChildIndex;
+                        stack[stackPointer++] = node.ChildIndex + model.BvhOffset;
                     }
                 } else {
                     if (distA < hit.Distance) {
-                        stack[stackPointer++] = node.ChildIndex;
+                        stack[stackPointer++] = node.ChildIndex + model.BvhOffset;
                     }
-                    if(distB < hit.Distance) {
-                        stack[stackPointer++] = node.ChildIndex + 1;
+                    if (distB < hit.Distance) {
+                        stack[stackPointer++] = node.ChildIndex + 1 + model.BvhOffset;
                     }
                 }
             }
@@ -273,26 +285,29 @@ bool closestHit(Ray ray, out RayHit hit) {
     bool hitSomething = false;
     RayHit currentHit;
     
-    for (int i = 0; i < gSphereBuffer.spheres.length(); i++) {
-        if (intersectSphere(ray, gSphereBuffer.spheres[i], currentHit) && 
+    for (int i = 0; i < spheresBuffer.spheres.length(); i++) {
+        if (intersectSphere(ray, spheresBuffer.spheres[i], currentHit) && 
             currentHit.Distance < hit.Distance) {
             hit = currentHit;
             hitSomething = true;
         }
     }
     
-    for (int i = 0; i < gPlaneBuffer.planes.length(); i++) {
-        if (intersectPlane(ray, gPlaneBuffer.planes[i], currentHit) && 
+    for (int i = 0; i < planesBuffer.planes.length(); i++) {
+        if (intersectPlane(ray, planesBuffer.planes[i], currentHit) && 
             currentHit.Distance < hit.Distance) {
             hit = currentHit;
             hitSomething = true;
         }
     }
     
-    if (intersectBvh(ray, currentHit) && 
-        currentHit.Distance < hit.Distance) {
-        hit = currentHit;
-        hitSomething = true;
+    for (int i = 0; i < modelsBuffer.models.length(); i++) {
+        Model model = modelsBuffer.models[i];
+        if (intersectBvh(ray, model, currentHit) && 
+            currentHit.Distance < hit.Distance) {
+            hit = currentHit;
+            hitSomething = true;
+        }
     }
     
     return hitSomething;
@@ -301,13 +316,13 @@ bool closestHit(Ray ray, out RayHit hit) {
 vec3 trace() {
     vec3 result = vec3(0,0,0);
     vec3 rayColor = vec3(1,1,1);
-    uint state = gl_GlobalInvocationID.x * gl_GlobalInvocationID.y * gSceneData.Seed;
+    uint state = gl_GlobalInvocationID.x * gl_GlobalInvocationID.y * sceneData.Seed;
     
     Ray ray = rayGen();
     RayHit hit;
-    for (int i = 0; i <= gSceneData.MaxBounces; i++) {
+    for (int i = 0; i <= sceneData.MaxBounces; i++) {
         if (closestHit(ray, hit)) {
-            Material hitMaterial = gMaterialBuffer.materials[hit.MaterialIndex];
+            Material hitMaterial = materialsBuffer.materials[hit.MaterialIndex];
             
             ray.Origin = hit.Position + EPSILON * hit.Normal;
             
@@ -329,20 +344,20 @@ vec3 trace() {
 
 layout(local_size_x = 8, local_size_y = 8) in;
 void main() {
-    ivec2 dimWindow = imageSize(gWindow);
+    ivec2 dimWindow = imageSize(window);
     if (gl_GlobalInvocationID.x >= dimWindow.x || 
         gl_GlobalInvocationID.y >= dimWindow.y) {
-        return;
+        return; 
     }
     
     vec3 result = trace();
     
-    if (gSceneData.NumFrames > 3) {
-        float weight = 1.0f / (gSceneData.NumFrames + 1);
-        vec3 previousColor = imageLoad(gWindow, ivec2(gl_GlobalInvocationID.xy)).rgb;
+    if (sceneData.NumFrames > 1) {
+        float weight = 1.0f / (sceneData.NumFrames + 1);
+        vec3 previousColor = imageLoad(window, ivec2(gl_GlobalInvocationID.xy)).rgb;
         result = mix(previousColor, result, weight);
-        imageStore(gWindow, ivec2(gl_GlobalInvocationID.xy), vec4(result, 1));
+        imageStore(window, ivec2(gl_GlobalInvocationID.xy), vec4(result, 1));
     } else {
-        imageStore(gWindow, ivec2(gl_GlobalInvocationID.xy), vec4(result, 1));
+        imageStore(window, ivec2(gl_GlobalInvocationID.xy), vec4(result, 1));
     }
 }

@@ -8,14 +8,15 @@ file(GLOB ImGuiSources
 )
 
 add_executable(VulkanCompute
-    src/App/BvhBuilder.cpp
-    src/App/BvhRenderer.cpp
     src/App/Components.cpp
     src/App/main.cpp
     src/App/RayTracerApp.cpp
 
     src/Core/AssetManager.cpp
+    src/Core/BvhBuilder.cpp
     src/Core/Logger.cpp
+    src/Core/Model.cpp
+    src/Core/Scene.cpp
     src/Core/VulkanComputeApp.cpp
     src/Core/Window.cpp
 
