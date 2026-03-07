@@ -47,11 +47,11 @@ void createBuffer(const std::shared_ptr<VulkanManager> &vulkanManager,
 }
 
 void copyBuffer(const std::shared_ptr<VulkanManager> &vulkanManager,
-                VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size) {
+                VkBuffer srcBuffer, VkBuffer dstBuffer, VkDeviceSize size, VkDeviceSize srcOffset, VkDeviceSize dstOffset) {
     vulkanManager->SubmitCommand([&](VkCommandBuffer commandBuffer) {
         VkBufferCopy copyRegion{};
-        copyRegion.srcOffset = 0;
-        copyRegion.dstOffset = 0;
+        copyRegion.srcOffset = srcOffset;
+        copyRegion.dstOffset = dstOffset;
         copyRegion.size = size;
         vkCmdCopyBuffer(commandBuffer, srcBuffer, dstBuffer, 1, &copyRegion);
     });

@@ -186,6 +186,10 @@ public:
         vkFreeMemory(mVulkanManager->Device(), mMemory, nullptr);
     }
 
+    void CopyTo(const StorageBuffer<T>& dstBuffer, VkDeviceSize dstOffset = 0) {
+        copyBuffer(mVulkanManager, mBuffer, dstBuffer.GetBuffer(), mSize, 0, dstOffset);
+    }
+
     [[nodiscard]] inline VkBuffer GetBuffer() const { return mBuffer; }
     [[nodiscard]] inline VkDeviceSize Size() const { return mSize; }
 

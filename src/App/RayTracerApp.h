@@ -30,11 +30,11 @@ private:
     std::mt19937 mRandomGenerator;
     std::shared_ptr<ComputePipeline> mPipeline;
     std::shared_ptr<Shader> mShader;
-
    
     std::shared_ptr<UniformBuffer<Camera>> mCamera;
     SceneData mSceneData{ 0, 0, 8, 16 };
     std::shared_ptr<UniformBuffer<SceneData>> mSceneDataBuffer;
 
     std::shared_ptr<Scene> mScene;
+    uint32_t mNumTriangles;
 };

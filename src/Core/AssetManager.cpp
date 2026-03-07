@@ -6,7 +6,7 @@
 
 #include "Core/Logger.h"
 
-std::shared_ptr<Mesh> AssetManager::LoadMesh(const std::string& filepath, const glm::mat4& modelMatrix) {
+std::shared_ptr<Mesh> AssetManager::LoadMesh(const std::string& filepath) {
     Assimp::Importer importer;
 
     const aiScene *scene = importer.ReadFile(
@@ -20,31 +20,29 @@ std::shared_ptr<Mesh> AssetManager::LoadMesh(const std::string& filepath, const 
     }
 
     auto newMesh = std::make_shared<Mesh>();
-    ProcessNode(scene, scene->mRootNode, newMesh.get(), modelMatrix);
+    ProcessNode(scene, scene->mRootNode, newMesh.get());
 
     return newMesh;
 }
 
-void AssetManager::ProcessNode(const aiScene *scene, const aiNode *node,
-    Mesh* outMesh, const glm::mat4& modelMatrix) {
+void AssetManager::ProcessNode(const aiScene *scene, const aiNode *node, Mesh* outMesh) {
     std::vector<Triangle> triangles;
     for (uint32_t i = 0; i < node->mNumMeshes; i++) {
         aiMesh *mesh = scene->mMeshes[node->mMeshes[i]];
-        auto meshTriangles = AssetManager::ProcessMesh(scene, mesh, modelMatrix);
+        auto meshTriangles = AssetManager::ProcessMesh(scene, mesh);
         triangles.insert(triangles.end(), meshTriangles.begin(), meshTriangles.end());
     }
     outMesh->mTriangles = std::move(triangles);
 
     for (uint32_t i = 0; i < node->mNumChildren; i++) {
         auto subMesh = Mesh();
-        AssetManager::ProcessNode(scene, node->mChildren[i], &subMesh, modelMatrix);
+        AssetManager::ProcessNode(scene, node->mChildren[i], &subMesh);
         outMesh->subMeshes.push_back(std::move(subMesh));
     }
 }
 
 std::vector<Triangle> AssetManager::ProcessMesh(const aiScene* scene,
-                                                const aiMesh* mesh,
-                                                const glm::mat4& modelMatrix) {
+                                                const aiMesh* mesh) {
     std::vector<Vertex> vertices;
     std::vector<uint32_t> indices;
 
@@ -59,9 +57,8 @@ std::vector<Triangle> AssetManager::ProcessMesh(const aiScene* scene,
         vertex.position = glm::vec3(mesh->mVertices[i].x, mesh->mVertices[i].y,
             mesh->mVertices[i].z);
 
-        vertex.position = glm::vec3(modelMatrix * glm::vec4(vertex.position, 1.0f));
-        vertex.normal = glm::vec3(modelMatrix * glm::vec4(mesh->mNormals[i].x, mesh->mNormals[i].y,
-            mesh->mNormals[i].z, 0.0f));
+        vertex.normal = glm::vec3(mesh->mNormals[i].x, mesh->mNormals[i].y,
+            mesh->mNormals[i].z);
 
         if (mesh->mTextureCoords[0]) {
             vertex.uv = glm::vec2(mesh->mTextureCoords[0][i].x,

@@ -15,7 +15,7 @@ struct BvhNode {
 
 class BvhBuilder {
 public:
-    BvhBuilder(const Mesh& mesh, uint32_t maxDepth);
+    BvhBuilder(const Model& model, uint32_t maxDepth);
 
     void Build(bool printStats = true);
 
@@ -33,7 +33,7 @@ private:
     void BuildLayer(BvhNode& parent, uint32_t depth);
     void PrintStats();
 
-    const Mesh& mMesh;
+    const Model& mModel;
     std::vector<BvhNode> mBvh;
     std::vector<Triangle> mTriangles;
 

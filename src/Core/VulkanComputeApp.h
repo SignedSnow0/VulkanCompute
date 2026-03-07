@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <vector>
 
 #include "Core/Window.h"
 #include "Vulkan/CommandBuffer.h"
@@ -9,6 +10,7 @@
 #include "Vulkan/Surface.h"
 #include "Vulkan/VulkanManager.h"
 #include "Vulkan/Gui.h"
+
 
 /**
  * @brief Base class for Vulkan compute applications.
@@ -62,11 +64,10 @@ public:
      */
     virtual void OnStop() = 0;
 
-protected:
     inline void AddEndOfFrameTask(std::function<void(const std::shared_ptr<CommandBuffer>&)> task) {
-        mEndOfFrameTasks.push_back(task);
+        mEndOfFrameTasks.push_back(std::move(task));
     }
-
+protected:
     Window mWindow;
     std::shared_ptr<VulkanManager> mVulkanManager;
     std::shared_ptr<Surface> mSurface;

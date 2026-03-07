@@ -1,0 +1,31 @@
+#version 460
+
+struct Vertex {
+    vec3 position;
+    vec3 normal;
+    vec2 uv;
+};
+
+layout(binding = 1) uniform MVP {
+    mat4 matrix;
+} mvp;
+
+layout(binding = 0) buffer VertexBuffer {
+    Vertex vertices[];
+} vertexBuffer;
+
+layout(local_size_x = 256) in;
+void main() {
+    uint index = gl_GlobalInvocationID.x;
+    if (index >= vertexBuffer.vertices.length()) {
+        return;
+    }
+
+    Vertex vertex = vertexBuffer.vertices[index];
+    
+    vec3 worldPosition = (mvp.matrix * vec4(vertex.position, 1.0)).xyz;
+    vec3 worldNormal = normalize((mvp.matrix * vec4(vertex.normal, 0.0)).xyz);
+
+    vertexBuffer.vertices[index].position = worldPosition;
+    vertexBuffer.vertices[index].normal = worldNormal;
+}

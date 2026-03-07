@@ -353,7 +353,7 @@ void main() {
     vec3 result = trace();
     
     if (sceneData.NumFrames > 1) {
-        float weight = 1.0f / (sceneData.NumFrames + 1);
+        float weight = 1.0f / sceneData.NumFrames;
         vec3 previousColor = imageLoad(window, ivec2(gl_GlobalInvocationID.xy)).rgb;
         result = mix(previousColor, result, weight);
         imageStore(window, ivec2(gl_GlobalInvocationID.xy), vec4(result, 1));

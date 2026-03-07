@@ -34,8 +34,17 @@ void GetLongestAxis(const BvhNode& node, SplitAxis& axis, float& pos) {
 }
 
 
-BvhBuilder::BvhBuilder(const Mesh& mesh, uint32_t maxDepth)
-    : mMesh(mesh), mMaxDepth(maxDepth), mTriangles(mesh.Triangles()) {}
+BvhBuilder::BvhBuilder(const Model& model, uint32_t maxDepth)
+    : mModel(model), mMaxDepth(maxDepth) {
+    for (const auto tri : model.GetMesh().Triangles()) {
+        Triangle transformedTri = tri;
+        transformedTri.V0 = model.GetModelMatrix() * glm::vec4(tri.V0, 1.0f);
+        transformedTri.V1 = model.GetModelMatrix() * glm::vec4(tri.V1, 1.0f);
+        transformedTri.V2 = model.GetModelMatrix() * glm::vec4(tri.V2, 1.0f);
+        
+        mTriangles.push_back(transformedTri);
+    }
+}
 
 void BvhBuilder::Build(bool printStats) {
     mBvh.clear();

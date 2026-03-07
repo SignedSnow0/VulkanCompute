@@ -13,6 +13,8 @@ Model::Model(const std::string& path, const Material& material, const glm::mat4&
         return;
     }
 
-    mMesh = AssetManager::LoadMesh(path, modelMatrix);
+    mMesh = AssetManager::LoadMesh(path);
     sMeshCache[path] = mMesh;
+
+    mUpdate = modelMatrix != glm::mat4(1.0f);
 }

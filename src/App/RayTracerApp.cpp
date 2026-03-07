@@ -21,7 +21,7 @@ RayTracerApp::RayTracerApp()
     mPipeline = std::make_shared<ComputePipeline>(mVulkanManager, mShader);
     mCamera = std::make_shared<UniformBuffer<Camera>>(mVulkanManager);
     mSceneDataBuffer = std::make_shared<UniformBuffer<SceneData>>(mVulkanManager);
-    mScene = std::make_shared<Scene>(mVulkanManager, mShader);
+    mScene = std::make_shared<Scene>(mVulkanManager, mShader, this);
 }
 
 RayTracerApp::~RayTracerApp() = default;
@@ -37,8 +37,8 @@ void RayTracerApp::OnStart() {
     glm::vec3 scale = glm::vec3(1);
 
     glm::mat4 modelMatrix = glm::translate(glm::mat4(1.0f), translation) *
-                  glm::toMat4(glm::quat{ glm::radians(rotation) }) *
-                  glm::scale(glm::mat4(1.0f), scale);
+                            glm::toMat4(glm::quat{ glm::radians(rotation) }) *
+                            glm::scale(glm::mat4(1.0f), scale);
     
     mScene->AddModel(Model("assets/models/Dragon_80K.obj", meshMaterial, modelMatrix));
 
@@ -47,9 +47,8 @@ void RayTracerApp::OnStart() {
     scale = glm::vec3(3.5);
 
     modelMatrix = glm::translate(glm::mat4(1.0f), translation) *
-                            glm::toMat4(glm::quat{ glm::radians(rotation) }) *
-                            glm::scale(glm::mat4(1.0f), scale);
-
+                  glm::toMat4(glm::quat{ glm::radians(rotation) }) *
+                  glm::scale(glm::mat4(1.0f), scale);
 
     mScene->AddModel(Model("assets/models/bunny.obj", meshMaterial, modelMatrix));
 
@@ -164,9 +163,7 @@ void RayTracerApp::RenderSettings() {
         int id = 0;
 
         if (ImGui::TreeNode("Spheres")) {
-            if (EntityView::DrawSpheres(mScene->Spheres(), mScene->Materials())) {
-                
-
+            if (EntityView::DrawSpheres(mScene)) {
                 mSceneData.numFrames = 0;
             }
             ImGui::TreePop();
@@ -174,7 +171,14 @@ void RayTracerApp::RenderSettings() {
 
 
         if (ImGui::TreeNode("Planes")) {
-            if (EntityView::DrawPlanes(mScene->Planes(), mScene->Materials())) {
+            if (EntityView::DrawPlanes(mScene)) {
+                mSceneData.numFrames = 0;
+            }
+            ImGui::TreePop();
+        }
+
+        if (ImGui::TreeNode("Meshes")) {
+            if (EntityView::DrawMeshes(mScene)) {
                 mSceneData.numFrames = 0;
             }
             ImGui::TreePop();
@@ -187,74 +191,60 @@ void RayTracerApp::BuildScene() {
     Plane boxPlane;
     boxPlane.position = { 0, 0, 0 };
     boxPlane.normal = { 0, 1, 0 };
-    boxPlane.materialIndex = mScene->Materials().size();
-    mScene->AddPlane(boxPlane);
 
     Material material;
     material.color = { .89, .85, .79 };
     material.emission_color = { 0, 0, 0, 0 };
     material.metalness = 0;
-    mScene->AddMaterial(material);
+    mScene->AddPlane(boxPlane, material);
 
     boxPlane.position = { -1, 0, 0 };
     boxPlane.normal = { 1, 0, 0 };
-    boxPlane.materialIndex = mScene->Materials().size();
-    mScene->AddPlane(boxPlane);
 
     material.color = { 1, 0, 0 };
     material.emission_color = { 0, 0, 0, 0 };
     material.metalness = 0;
-    mScene->AddMaterial(material);
+    mScene->AddPlane(boxPlane, material);
 
     boxPlane.position = { 1, 0, 0 };
     boxPlane.normal = { -1, 0, 0 };
-    boxPlane.materialIndex = mScene->Materials().size();
-    mScene->AddPlane(boxPlane);
 
     material.color = { 0, 1, 0 };
     material.emission_color = { 0, 0, 0, 0 };
     material.metalness = 0;
-    mScene->AddMaterial(material);
+    mScene->AddPlane(boxPlane, material);
 
     boxPlane.position = { 0, 0, -1 };
     boxPlane.normal = { 0, 0, 1 };
-    boxPlane.materialIndex = mScene->Materials().size();
-    mScene->AddPlane(boxPlane);
 
     material.color = { .89, .85, .79 };
     material.emission_color = { 0, 0, 0, 0 };
     material.metalness = 0;
-    mScene->AddMaterial(material);
+    mScene->AddPlane(boxPlane, material);
 
     boxPlane.position = { 0, 0, 1 };
     boxPlane.normal = { 0, 0, -1 };
-    boxPlane.materialIndex = mScene->Materials().size();
-    mScene->AddPlane(boxPlane);
 
     material.color = { .89, .85, .79 };
     material.emission_color = { 0, 0, 0, 0 };
     material.metalness = 0;
-    mScene->AddMaterial(material);
+    mScene->AddPlane(boxPlane, material);
 
     boxPlane.position = { 0, 2, 0 };
     boxPlane.normal = { 0, -1, 0 };
-    boxPlane.materialIndex = mScene->Materials().size();
-    mScene->AddPlane(boxPlane);
 
     material.color = { .89, .85, .79 };
     material.emission_color = { 0, 0, 0, 0 };
     material.metalness = 0;
-    mScene->AddMaterial(material);
+    mScene->AddPlane(boxPlane, material);
 
     Sphere sphere;
     sphere.position = { 0, 2, 0 };
     sphere.radius = .5;
-    sphere.materialIndex = mScene->Materials().size();
-    mScene->AddSphere(sphere);
 
     Material sphereMaterial;
     sphereMaterial.color = { 1, 1, 1 };
     sphereMaterial.emission_color = { 1, 1, 1, 1 };
     sphereMaterial.metalness = 0;
-    mScene->AddMaterial(sphereMaterial);
+    mScene->AddSphere(sphere, sphereMaterial);
 }
